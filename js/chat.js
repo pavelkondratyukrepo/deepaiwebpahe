@@ -1113,7 +1113,10 @@
             break;
           default: rep = m;
         }
-        if (m.charAt(0) === m.charAt(0).toUpperCase() && m.charAt(0) !== m.charAt(0).toLowerCase() && rep !== 'I' && rep.indexOf('I ') !== 0 && rep.indexOf("I'") !== 0) {
+        // "I" is always upper-case, so its case says nothing about sentence position
+        var capped = low.charAt(0) === 'i' && !/^\s*$/.test(whole.slice(0, off)) ? false
+          : m.charAt(0) === m.charAt(0).toUpperCase() && m.charAt(0) !== m.charAt(0).toLowerCase();
+        if (capped && rep !== 'I' && rep.indexOf('I ') !== 0 && rep.indexOf("I'") !== 0) {
           rep = rep.charAt(0).toUpperCase() + rep.slice(1);
         }
         return rep;

@@ -63,6 +63,8 @@
 
 /* ---------- end state ---------- */
 #foot .foot-inner{ position:relative; z-index:1; }
+/* the ring is 120vw on phones: clip it sideways (only) so it can't widen the mobile layout viewport */
+#foot{ overflow-x: clip; }
 .fx-endring{
   position:absolute; z-index:0; pointer-events:none;
   width: min(560px, 120vw); aspect-ratio: 1;

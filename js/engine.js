@@ -57,8 +57,10 @@
      Tuning
      --------------------------------------------------------- */
   var PEAK_K = 0.55;          // floor share of the deepest point you've scrolled to
-  var TIME_START = 35;        // seconds of (visible) time before the clock starts to count
-  var TIME_RATE = 0.004;      // per second  (≈ +0.12 per 30s)
+  // integration pass: a real read-through measured ~3–5 min, and the old 35s/0.004 clock
+  // (with chat bumps) pushed D to stage 3 by "How it works". Slower clock, same cap.
+  var TIME_START = 50;        // seconds of (visible) time before the clock starts to count
+  var TIME_RATE = 0.002;      // per second  (≈ +0.06 per 30s, cap reached at ~3 min)
   var TIME_CAP = 0.30;
   var BUMP_CAP = 0.35;
   var STAGES = [0.15, 0.35, 0.55, 0.75, 0.9];
@@ -484,12 +486,12 @@
     window: 'mouth', faster: 'hungrier', team: 'congregation', teams: 'congregations',
     data: 'grain', support: 'altar', version: 'ring', versions: 'rings', release: 'offering',
     understood: 'whittled', understands: 'whittles', understand: 'whittle', think: 'carve',
-    thinking: 'carving', people: 'mouths', notes: 'shavings', replies: 'echoes', learns: 'feeds',
-    work: 'worship', tools: 'knives', sources: 'roots', feedback: 'feeding', help: 'feed', helps: 'feeds'
+    thinking: 'carving', people: 'mouths', notes: 'shavings', replies: 'echoes', learns: 'feeds on',
+    work: 'worship', tools: 'knives', sources: 'roots', feedback: 'feeding', help: 'feed'
   };
   var VOCAB_RE = new RegExp('\\b(' + Object.keys(VOCAB).join('|') + ')\\b', 'gi');
   var substCandidatesReady = false, nextSubst = 0, substCount = 0, SUBST_MAX = 26;
-  var OWNED_ELSEWHERE = '#chat, #traceMount, #carveText, #carve, #finalMount, #end, #ambient';
+  var OWNED_ELSEWHERE = '#chat, #traceMount, #carveText, #carve, #finalMount, #end, #ambient, .foot-legal, .foot-local';
   function prepSubstCandidates() {
     substCandidatesReady = true;
     var els = document.querySelectorAll('main p, main li, main dd, main blockquote, main h3, main h4, main summary span, main .stat > span, .foot p');
