@@ -149,8 +149,9 @@
     }
     sections.sort(function (a, b) { return a.el.compareDocumentPosition(b.el) & 2 ? 1 : -1; });
   }
+  var measures = 0;
   function measure() {
-    dirty = false;
+    dirty = false; measures++;
     vh = window.innerHeight || vh;
     var sy = window.scrollY || window.pageYOffset || 0;
     for (var i = 0; i < sections.length; i++) {
@@ -227,11 +228,16 @@
     if ((lum(fg) > lum(bg)) === polarityDark) fg = mixRGB(fg, pole, 0.85);
     var target = Math.min(7.5, contrast(pole, bg) * 0.92);
     for (var k = 1; k <= 10 && contrast(fg, bg) < target; k++) fg = mixRGB(fg, pole, 0.18);
-    var at = Math.min(3.4, contrast(pole, bg) * 0.7);
+    var at = Math.min(3.0, contrast(pole, bg) * 0.62);
     for (var j = 1; j <= 10 && contrast(ac, bg) < at; j++) ac = mixRGB(ac, pole, 0.12);
     return { bg: bg, fg: fg, ac: ac };
   }
 
+  var lastW = { bg: null, fg: null, ac: null };
+  function far(a, b) {
+    if (!b) return true;
+    return Math.abs(a[0] - b[0]) >= 3 || Math.abs(a[1] - b[1]) >= 3 || Math.abs(a[2] - b[2]) >= 3;
+  }
   var themeMeta = document.querySelector('meta[name="theme-color"]');
   function applyPalette(D) {
     if (!scrollPal) return;
@@ -245,7 +251,11 @@
       }
     }
     p = safePalette(p);
-    var bg = toHex(p.bg), fg = toHex(p.fg), ac = toHex(p.ac), dd = (Math.round(D * 400) / 400).toString();
+    // write only on a visible step (≥3/255 in any channel): every write restyles the page
+    if (far(p.bg, lastW.bg)) lastW.bg = p.bg;
+    if (far(p.fg, lastW.fg)) lastW.fg = p.fg;
+    if (far(p.ac, lastW.ac)) lastW.ac = p.ac;
+    var bg = toHex(lastW.bg), fg = toHex(lastW.fg), ac = toHex(lastW.ac), dd = (Math.round(D * 100) / 100).toString();
     var st = root.style;
     if (bg !== cur.bg) { st.setProperty('--bg', bg); cur.bg = bg; HW.palette.bg = bg; if (themeMeta) themeMeta.setAttribute('content', bg); }
     if (fg !== cur.fg) { st.setProperty('--fg', fg); cur.fg = fg; HW.palette.fg = fg; }
@@ -257,6 +267,7 @@
      3. Text controllers: data-swap, .rot, substitutions
      --------------------------------------------------------- */
   var GLYPHS = '░▒▓#%&*+=<>/\\|~^:;_'.split('');
+  var LETTERS = 'abcdeghilmnorstuwy'.split('');
   var LOOK = {
     a: 'ɑα', b: 'ƅ', c: 'ç', d: 'ɗ', e: 'ɘǝ', f: 'ƒ', g: 'ɠ', h: 'ɦ', i: 'ıï', k: 'ĸ', l: 'łꞁ', m: 'ɱ',
     n: 'ŋɲ', o: 'øɵ', p: 'ρ', r: 'ɾʀ', s: 'ʂꜱ', t: 'ƭţ', u: 'ʊü', v: 'ʋ', w: 'ɯ', y: 'ɣ', z: 'ʐ',
@@ -378,7 +389,7 @@
       for (var k = 0; k < L; k++) {
         if (k < reveal) { out += mt[k] || ''; continue; }
         var ref = mt[k] || mf[k] || 'x';
-        out += (ref === ' ') ? ' ' : (p < 0.12 && mf[k] && Math.random() < 0.6 ? mf[k] : pick(GLYPHS));
+        out += (ref === ' ') ? ' ' : (p < 0.12 && mf[k] && Math.random() < 0.6 ? mf[k] : (Math.random() < 0.55 ? pick(LETTERS) : pick(GLYPHS)));
       }
       c.el.textContent = a.to.slice(0, a.pre) + out + a.to.slice(a.to.length - a.suf);
     }
@@ -573,12 +584,12 @@
   /* ---------------------------------------------------------
      6. Whispers (idle / return) and the document title
      --------------------------------------------------------- */
-  var whisperOn = false, whisperAt = 0, whisperTimer = 0;
+  var whisperOn = false, whisperAt = 0, whisperTimer = 0, whisperMin = 1400;
   function whisper(text, hold) {
     if (!whisperEl) return;
     whisperEl.textContent = text;
     whisperEl.classList.add('on');
-    whisperOn = true; whisperAt = now();
+    whisperOn = true; whisperAt = now(); whisperMin = hold ? 3800 : 1600;
     clearTimeout(whisperTimer);
     if (hold) whisperTimer = setTimeout(hideWhisper, hold);
   }
@@ -606,6 +617,7 @@
   };
   function onIdle(sec) {
     if (HW.d < 0.5) return;
+    if (whisperOn && now() - whisperAt < whisperMin + 2000) return;   // don't talk over itself
     var set = HW.d >= 0.75 ? IDLE_LINES.late : IDLE_LINES.mid;
     var line = pick(set[sec] || set[8]);
     var said = lastSaid();
@@ -638,6 +650,7 @@
       var away = hiddenAt ? (now() - hiddenAt) / 1000 : 0;
       hiddenAt = 0;
       lastFrame = 0;
+      lastInput = now(); idleFired = 0;
       if (away > 3 && HW.stage >= 3 && RETURN_LINES[HW.stage]) {
         HW.bump(0.02);
         whisper(RETURN_LINES[HW.stage], 6500);
@@ -684,7 +697,7 @@
 
     var dbg = HW.debug;
     dbg.scrollD = scrollD; dbg.peak = peak; dbg.timeTerm = timeTerm; dbg.bumps = bumps;
-    dbg.floor = floor; dbg.d = D; dbg.stage = stage; dbg.pinned = pin; dbg.activeTime = activeTime;
+    dbg.floor = floor; dbg.d = D; dbg.measures = measures; dbg.stage = stage; dbg.pinned = pin; dbg.activeTime = activeTime;
 
     applyPalette(D);
     if (stage !== prevStage || booting) {
@@ -736,7 +749,7 @@
   function onInput() {
     lastInput = now();
     idleFired = 0;
-    if (whisperOn && now() - whisperAt > 1400) { clearTimeout(whisperTimer); hideWhisper(); }
+    if (whisperOn && now() - whisperAt > whisperMin) { clearTimeout(whisperTimer); hideWhisper(); }
   }
 
   /* ---------------------------------------------------------
