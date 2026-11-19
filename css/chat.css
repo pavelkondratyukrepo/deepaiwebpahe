@@ -252,7 +252,7 @@
   background: repeating-linear-gradient(135deg, var(--line) 0 6px, transparent 6px 12px);
   border: 1px dashed var(--line-strong);
 }
-.tr-line.is-unredacted .tr-t{ color: var(--fg); background: var(--accent-soft); border-radius: 4px; padding: 0 4px; animation: tr-unredact 1.2s ease both; }
+.tr-line.is-unredacted .tr-t{ color: var(--fg); background: var(--accent-soft); border-radius: 4px; padding: 0 4px; animation: tr-unredact .8s ease both; }
 .tr-line.is-direct{
   font-family: var(--font-serif); font-size: 17px; line-height: 1.4;
   color: var(--fg); margin: 4px 0;

@@ -101,7 +101,8 @@
   var STOP = ('the a an and or but if of to in on at for with from by is are was were be been am i me my you your ' +
     'it its this that these those what when where who why how do does did can could would should will just ' +
     'about tell give make please some any all not no yes so very really get got have has had into out up down ' +
-    'than then them they we our us he she his her there here im youre dont cant whats').split(' ');
+    'than then them they we our us he she his her there here im youre dont cant whats something anything ' +
+    'thing things want need know like think tell said say still also maybe kind sort').split(' ');
   function salient(text) {
     var words = (text.toLowerCase().match(/[a-zÀ-ɏ']+/g) || [])
       .map(function (w) { return w.replace(/'/g, ''); })
@@ -605,8 +606,10 @@
 
     /* ---------- state → chrome ---------- */
     function phaseFor(n) {
-      var score = stage() + n / 3;
-      return score < 1 ? 0 : score < 2.2 ? 1 : score < 3.6 ? 2 : 3;
+      // a blend of how far down the page has gone and how long you've talked
+      var s = stage(), score = s * 0.8 + n / 3.5;
+      var p = score < 1 ? 0 : score < 2.2 ? 1 : score < 3.6 ? 2 : 3;
+      return Math.max(p, s >= 4 ? 3 : s >= 3 ? 2 : 0);
     }
 
     function renderChips(animate) {
