@@ -1,0 +1,80 @@
+/* =========================================================
+   HEARTWOOD — fx.css (Agent 4)
+   The carving (#carve), ambient toggle states, end state.
+   ========================================================= */
+
+#carve .pin{ background:#0B0807; isolation:isolate; }
+#carveCanvas{ z-index:0; }
+
+/* radial darkening so text never fights the rings */
+.cv-shade{
+  position:absolute; inset:0; z-index:1; pointer-events:none; opacity:0;
+  background: radial-gradient(ellipse 44% 34% at 50% 50%,
+    rgba(9,7,6,.94) 0%, rgba(9,7,6,.78) 42%, rgba(9,7,6,.32) 72%, rgba(9,7,6,0) 100%);
+  will-change: opacity;
+}
+
+#carveText{ z-index:2; color:#E9DCC6; pointer-events:none; }
+.cv-stack{ display:grid; place-items:center; }
+.cv-lines, .cv-climax{ grid-area:1 / 1; }
+.cv-lines{ display:grid; place-items:center; width:100%; }
+.cv-line{
+  grid-area:1 / 1;
+  max-width: 22em; margin:0 auto;
+  font-family: var(--font-serif); font-style: italic; font-weight:400;
+  font-size: clamp(21px, 2.35vw, 33px); line-height:1.32; letter-spacing:-.005em;
+  color:#DCCDB6;
+  text-wrap: balance;
+  opacity:0;
+  will-change: opacity, transform;
+  text-shadow: 0 0 24px rgba(9,7,6,.9);
+}
+.cv-climax{
+  max-width: 14.2em; margin:0 auto;
+  font-family: var(--font-serif); font-weight:400;
+  font-size: clamp(31px, 4.6vw, 68px); line-height:1.13; letter-spacing:-.018em;
+  color:#F1E6D3;
+  text-wrap: balance;
+  text-shadow: 0 0 34px rgba(9,7,6,.95), 0 0 2px rgba(9,7,6,.6);
+  font-variation-settings: "opsz" 72;
+}
+.cv-w{ opacity:0; will-change: opacity; }
+
+.cv-meter{
+  position:absolute; left:0; right:0; z-index:2;
+  bottom: max(30px, calc(env(safe-area-inset-bottom) + 18px));
+  text-align:center; pointer-events:none;
+  font-size: 11px; font-weight:500; letter-spacing:.2em; text-transform:uppercase;
+  color: rgba(214,190,160,.62);
+  opacity:0;
+}
+
+@media (max-width: 640px){
+  .cv-shade{
+    background: radial-gradient(ellipse 78% 32% at 50% 50%,
+      rgba(9,7,6,.95) 0%, rgba(9,7,6,.8) 45%, rgba(9,7,6,.3) 75%, rgba(9,7,6,0) 100%);
+  }
+  .cv-line{ max-width: 17em; font-size: 22px; }
+  .cv-climax{ font-size: clamp(30px, 8.6vw, 38px); line-height:1.16; }
+}
+
+/* ambient toggle: a quiet sign of life while on */
+.ambient[aria-pressed="true"]{ border-color: var(--accent); }
+
+/* ---------- end state ---------- */
+#foot .foot-inner{ position:relative; z-index:1; }
+/* the ring is 120vw on phones: clip it sideways (only) so it can't widen the mobile layout viewport */
+#foot{ overflow-x: clip; }
+.fx-endring{
+  position:absolute; z-index:0; pointer-events:none;
+  width: min(560px, 120vw); aspect-ratio: 1;
+  left:50%; bottom:0; transform: translateX(-50%) scale(1.06); transform-origin: 50% 100%;
+  background: center / contain no-repeat;
+  opacity:0;
+  transition: opacity 7s ease, transform 9s ease;
+}
+.fx-endring.on{ opacity:.13; transform: translateX(-50%) scale(1); }
+
+@media (prefers-reduced-motion: reduce){
+  .fx-endring{ transform: translateX(-50%); }
+}

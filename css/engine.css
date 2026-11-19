@@ -1,0 +1,174 @@
+/* =========================================================
+   HEARTWOOD — engine.css (Agent 2)
+   Global atmosphere + stage-driven behaviour.
+   engine.js sets --bg --fg --accent --d and data-stage on <html>.
+   Overlays sit at z-index 70–74 (above content and nav, below any
+   full-screen finale layer other agents may add at 80+).
+   ========================================================= */
+
+html{
+  scrollbar-color: color-mix(in srgb, var(--fg) 30%, transparent) var(--bg);
+  transition: none;
+}
+body{ transition: none; }
+
+/* ---------- overlays: all inert ---------- */
+#grain, #vignette, #scan, #hw-rings{
+  position: fixed; pointer-events: none; opacity: 0;
+  contain: strict;
+}
+
+/* film grain: a tile of fractal noise, mid-grey with uniform alpha, so it
+   reads on cream and on near-black alike */
+#grain{
+  z-index: 72;
+  inset: -60px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 .5  0 0 0 0 .5  0 0 0 0 .5  1.6 0 0 0 -.3'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  background-size: 180px 180px;
+  mix-blend-mode: normal;
+  will-change: transform, opacity;
+  animation: hw-grain 1.1s steps(1) infinite;
+}
+@keyframes hw-grain{
+  0%  { transform: translate3d(0,0,0); }
+  17% { transform: translate3d(-23px,11px,0); }
+  34% { transform: translate3d(14px,-29px,0); }
+  51% { transform: translate3d(-37px,-6px,0); }
+  68% { transform: translate3d(27px,21px,0); }
+  85% { transform: translate3d(-8px,34px,0); }
+}
+
+/* vignette: the edges of the room going dark; at the end, a little ember in it */
+#vignette{
+  z-index: 71;
+  inset: 0;
+  background:
+    radial-gradient(ellipse 120% 95% at 50% 46%,
+      transparent 52%,
+      color-mix(in srgb, #000 calc(18% + var(--d) * 40%), transparent) 86%,
+      color-mix(in srgb, #000 calc(30% + var(--d) * 50%), transparent) 118%),
+    radial-gradient(ellipse 140% 110% at 50% 110%,
+      color-mix(in srgb, var(--accent) calc(max(0, var(--d) - .8) * 60%), transparent) 0%,
+      transparent 55%);
+}
+
+/* scanlines + one slow band of light drifting down, like a cheap monitor */
+#scan{
+  z-index: 70;
+  inset: 0;
+  background:
+    repeating-linear-gradient(to bottom,
+      transparent 0 2px,
+      color-mix(in srgb, var(--fg) 6%, transparent) 2px 3px);
+  mix-blend-mode: normal;
+}
+#scan::after{
+  content:""; position:absolute; left:0; right:0; top:-30vh; height: 30vh;
+  background: linear-gradient(to bottom, transparent, color-mix(in srgb, var(--fg) 4%, transparent) 50%, transparent);
+  animation: hw-band 11s linear infinite;
+  will-change: transform;
+}
+@keyframes hw-band{ to { transform: translate3d(0, 160vh, 0); } }
+
+/* growth rings that gather round the pointer late in the piece (fine pointers only) */
+#hw-rings{
+  z-index: 69;
+  top: 0; left: 0; width: 520px; height: 520px;
+  contain: strict;
+  will-change: transform, opacity;
+  transition: opacity .8s ease;
+  background:
+    repeating-radial-gradient(ellipse 100% 90% at 54% 47%,
+      transparent 0 15px,
+      color-mix(in srgb, var(--accent) 34%, transparent) 15.6px 16.6px,
+      transparent 17.4px 23px);
+  -webkit-mask-image: radial-gradient(circle at 50% 50%, #000 0, rgba(0,0,0,.55) 30%, transparent 68%);
+          mask-image: radial-gradient(circle at 50% 50%, #000 0, rgba(0,0,0,.55) 30%, transparent 68%);
+}
+
+/* ---------- whisper (idle / return lines) ---------- */
+#hw-whisper{
+  position: fixed; z-index: 74;
+  left: max(var(--gutter), env(safe-area-inset-left));
+  bottom: max(22px, env(safe-area-inset-bottom));
+  max-width: min(440px, calc(100vw - 2 * var(--gutter)));
+  font-family: var(--font-serif);
+  font-style: italic;
+  font-size: 16px; line-height: 1.4;
+  letter-spacing: .005em;
+  color: var(--fg);
+  padding: 8px 12px 9px;
+  border-left: 1px solid var(--accent);
+  background: color-mix(in srgb, var(--bg) 78%, transparent);
+  -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px);
+  pointer-events: none;
+  opacity: 0; transform: translate3d(0, 6px, 0);
+  transition: opacity 1.4s ease, transform 1.4s ease;
+}
+#hw-whisper:empty{ display:none; }
+#hw-whisper.on{ opacity: .92; transform: none; }
+
+/* ---------- text effects ---------- */
+.hw-swapping{
+  color: color-mix(in srgb, var(--accent) 55%, currentColor);
+}
+.twitch{ will-change: auto; }
+.twitch.hw-tw{
+  transform: translate3d(var(--tx, 0), var(--ty, 0), 0) skewX(var(--tk, 0deg));
+  text-shadow: calc(var(--tx, 0px) * -1) 0 0 color-mix(in srgb, var(--accent) 45%, transparent);
+  transition: none !important;
+}
+
+/* ---------- the nav mark: rings drift, the crack opens, the pith wakes ---------- */
+.logo-mark g > *{ transform-box: view-box; transform-origin: 16px 16px; }
+html[data-stage="2"] .logo-mark g > path:nth-of-type(1),
+html[data-stage="3"] .logo-mark g > path:nth-of-type(1),
+html[data-stage="4"] .logo-mark g > path:nth-of-type(1),
+html[data-stage="5"] .logo-mark g > path:nth-of-type(1){ animation: hw-ring 46s linear infinite; }
+html[data-stage="2"] .logo-mark g > path:nth-of-type(2),
+html[data-stage="3"] .logo-mark g > path:nth-of-type(2),
+html[data-stage="4"] .logo-mark g > path:nth-of-type(2),
+html[data-stage="5"] .logo-mark g > path:nth-of-type(2){ animation: hw-ring 31s linear infinite reverse; }
+@keyframes hw-ring{ to { transform: rotate(360deg); } }
+
+.logo-crack{ stroke-dasharray: 12; stroke-dashoffset: 12; transition: stroke-dashoffset 2.4s ease, stroke .6s; }
+html[data-stage="3"] .logo-crack,
+html[data-stage="4"] .logo-crack,
+html[data-stage="5"] .logo-crack{ stroke: var(--accent); stroke-dashoffset: 0; }
+
+.logo-core{ transform-box: fill-box; transform-origin: center; transition: transform 2s ease; }
+html[data-stage="4"] .logo-core{ transform: scale(1.7); }
+html[data-stage="5"] .logo-core{ transform: scale(2.1); animation: hw-pith 3.2s ease-in-out infinite; }
+@keyframes hw-pith{ 50% { transform: scale(1.6); } }  /* ~0.3 Hz: a slow breath, not a flash */
+
+/* ---------- late typography: the product voice loses its grip ---------- */
+html[data-stage="4"] .display,
+html[data-stage="5"] .display{
+  font-family: var(--font-serif); font-weight: 400; letter-spacing: -.025em;
+}
+html[data-stage="5"] .display .hl{ font-style: italic; }
+html[data-stage="4"] .lead,
+html[data-stage="5"] .lead{ font-family: var(--font-serif); font-size: clamp(19px, 1.8vw, 22px); }
+
+/* ---------- selection, caret: small things that change while you're not looking ---------- */
+html[data-stage="3"] ::selection{ background: var(--fg); color: var(--bg); }
+html[data-stage="4"] ::selection,
+html[data-stage="5"] ::selection{ background: var(--accent); color: #0B0908; }
+html[data-stage="4"], html[data-stage="5"]{ caret-color: var(--accent); scrollbar-color: color-mix(in srgb, var(--accent) 70%, transparent) var(--bg); }
+
+/* the status dot stops being green */
+.status .dot, .foot-links .dot{ transition: background .8s, box-shadow .8s; }
+html[data-stage="3"] .status .dot,
+html[data-stage="4"] .status .dot,
+html[data-stage="5"] .status .dot,
+html[data-stage="5"] .foot-links .dot{
+  background: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft);
+}
+
+/* ---------- reduced motion: palette and text stay, motion goes ---------- */
+@media (prefers-reduced-motion: reduce){
+  #grain, #scan::after, .logo-mark g > *, .logo-core{ animation: none !important; }
+  #hw-rings{ display: none; }
+  .twitch.hw-tw{ transform: none; text-shadow: none; }
+}
+@media (hover: none){ #hw-rings{ display:none; } }
