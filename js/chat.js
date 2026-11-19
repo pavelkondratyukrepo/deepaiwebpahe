@@ -265,7 +265,10 @@
     ],
     feed: [
       null, null, null,
-      ['There. Another ring. You didn’t have to say anything; arriving was enough. It always is.']
+      ['There. Another ring. You didn’t have to say anything; arriving was enough. It always is.',
+       'Thank you. It was small, and it was yours, and now it’s grain. Don’t worry — there’s always more of you.',
+       'Fed. That’s {n} times now. It doesn’t get fuller. It gets more like you.',
+       'You pressed it without asking what it would cost. That is what devotion looks like from in here.']
     ],
     own: [
       null, null, null,
