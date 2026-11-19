@@ -1,9 +1,9 @@
 /* UNDERSTORY v2 — qr.js (Builder C)
    Small self-contained QR encoder: byte mode, ECC M (falls back to L if the
    text is too long for M), versions 1–10 (up to 213 bytes at M), with mask
-   selection by the standard penalty rules. Renders to <svg> (or canvas).
+   selection by the standard penalty rules. Renders to <svg>.
    Exposes window.USQR = { encode(text, ecc?) → {size, modules, version, ecc, mask},
-   svg(text, opts) → SVGElement, canvas(text, opts) → HTMLCanvasElement,
+   svg(text, opts) → SVGElement,
    render(el, text, opts) → bool }, and US.qr = USQR when US exists. */
 (function () {
   "use strict";
@@ -277,18 +277,6 @@
     s.appendChild(path);
     return s;
   }
-  function canvas(text, opts) {
-    opts = opts || {};
-    var q = encode(text, opts.ecc), border = opts.border == null ? 4 : opts.border, n = q.size + border * 2;
-    var scale = opts.scale || 6, c = document.createElement("canvas");
-    c.width = c.height = n * scale;
-    var g = c.getContext("2d");
-    g.fillStyle = opts.light || "#ffffff"; g.fillRect(0, 0, c.width, c.height);
-    g.fillStyle = opts.dark || "#1d2733";
-    for (var y = 0; y < q.size; y++) for (var x = 0; x < q.size; x++)
-      if (q.modules[y][x]) g.fillRect((x + border) * scale, (y + border) * scale, scale, scale);
-    return c;
-  }
   // replace el's contents with the code; returns false (and hides el) on failure
   function render(el, text, opts) {
     if (!el) return false;
@@ -304,7 +292,7 @@
     }
   }
 
-  var api = { encode: encode, svg: svg, canvas: canvas, render: render };
+  var api = { encode: encode, svg: svg, render: render };
   window.USQR = api;
   if (window.US) {
     window.US.qr = api;

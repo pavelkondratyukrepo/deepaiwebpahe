@@ -11,23 +11,16 @@
   var warned = {};
   function warn(k) { if (DEBUG && !warned[k]) { warned[k] = 1; try { console.warn("[tools] missing: " + k); } catch (e) {} } }
 
-  /* ------------------------------------------------------------------ */
-  /* helpers                                                             */
-  /* ------------------------------------------------------------------ */
+  /* ==== helpers ==== */
   var MASKS = [0, 8, 16, 24, 30, 32];
   var MASK_T = { 0: 30, 8: 80, 16: 150, 24: 220, 30: 305, 32: 368 };
   function $(id) { return document.getElementById(id); }
   function mask() { var m = +US.mask; return MASKS.indexOf(m) >= 0 ? m : 0; }
-  function T() { try { return typeof US.T === "function" ? +US.T() || 0 : 0; } catch (e) { return 0; } }
-  function recall(k, d) { try { return typeof US.recall === "function" ? US.recall(k, d) : d; } catch (e) { return d; } }
-  function remember(k, v) { try { if (typeof US.remember === "function") US.remember(k, v); } catch (e) {} }
-  function push(k, v) {
-    try {
-      if (typeof US.push === "function") US.push(k, v);
-      else { var a = (recall(k, []) || []).slice(); a.push(v); remember(k, a); }
-    } catch (e) {}
-  }
-  function emit(e, d) { try { US.emit(e, d); } catch (err) { if (DEBUG) try { console.warn(err); } catch (x) {} } }
+  function T() { return +US.T() || 0; }
+  function recall(k, d) { return US.recall(k, d); }
+  function remember(k, v) { US.remember(k, v); }
+  function push(k, v) { US.push(k, v); }
+  function emit(e, d) { US.emit(e, d); }
   function get(path) {
     var o = C(), parts = path.split(".");
     for (var i = 0; i < parts.length; i++) { if (o == null) break; o = o[parts[i]]; }
@@ -58,7 +51,7 @@
     var a = +m[1], b = +m[2];
     return { a: a, b: b, a2: (a % 253) + 1, b2: (b % 253) + 1 };
   }
-  function gw() { try { return typeof US.gw === "function" ? US.gw() : null; } catch (e) { return null; } }
+  function gw() { return US.gw(); }
 
   // last-lookup edit rule (§3.9.3), resolved here so it does not depend on the director knowing buckets
   function editLastQuery() {
@@ -89,18 +82,8 @@
     for (k in o) ex[k] = o[k];
     var g = gw(); if (g != null) ex.gw = g;
     for (k in extra) ex[k] = extra[k];
-    if (typeof US.fmt === "function") {
-      try { var r = US.fmt(s, ex); return r == null ? null : String(r); } catch (e) { return null; }
-    }
-    // fallback formatter (only used if the director is missing fmt)
-    var miss = false;
-    var out = s.replace(/\{([a-zA-Z]+)\}/g, function (all, key) {
-      var v = ex[key] != null ? ex[key] : recall(key, null);
-      if (key === "ip" && v == null) v = US.ip; if (key === "mac" && v == null) v = US.mac;
-      if (v == null || v === "") { miss = true; return ""; }
-      return String(v);
-    });
-    return miss ? null : out;
+    var r = US.fmt(s, ex);
+    return r == null ? null : String(r);
   }
   // value → string: handles {t,alt} and staged objects
   function fmt(v, extra, m) {
@@ -117,9 +100,6 @@
   function pick(path, extra) {
     var arr = get(path);
     if (!Array.isArray(arr) || !arr.length) return fmt(arr, extra);
-    if (typeof US.pick === "function") {
-      try { var r = US.pick(path, extra); if (r != null) return String(r); } catch (e) {}
-    }
     var pool = localPools[path];
     if (!pool || !pool.length) { pool = localPools[path] = arr.map(function (_, i) { return i; }); }
     for (var tries = 0; tries < arr.length && pool.length; tries++) {
@@ -128,11 +108,8 @@
     }
     return null;
   }
-  function toast(t) { if (t != null && typeof US.toast === "function") try { US.toast(t); } catch (e) {} }
-  function after(ms, fn) {
-    if (typeof US.after === "function") { try { return US.after(ms, fn); } catch (e) {} }
-    return setTimeout(fn, ms / (US.speed || 1));
-  }
+  function toast(t) { US.toast(t); }
+  function after(ms, fn) { return US.after(ms, fn); }
   function el(tag, cls, text) {
     var e = document.createElement(tag);
     if (cls) e.className = cls;
@@ -142,9 +119,7 @@
   function inPanel() { return US.state === "panel" || US.state === "face"; }
   function nowMs() { return (window.performance && performance.now) ? performance.now() : Date.now(); }
 
-  /* ------------------------------------------------------------------ */
-  /* rate limit (≥5 submits in 8 s → 2 s of 429, submit ignored)         */
-  /* ------------------------------------------------------------------ */
+  /* ==== rate limit (≥5 submits in 8 s → 2 s of 429, submit ignored) ==== */
   var submits = [], limitedUntil = 0;
   function rateLimited() {
     var now = nowMs(), sp = US.speed || 1;
@@ -157,9 +132,7 @@
     return false;
   }
 
-  /* ------------------------------------------------------------------ */
-  /* DNS lookup — bucket selection and resolve()                         */
-  /* ------------------------------------------------------------------ */
+  /* ==== DNS lookup — bucket selection and resolve() ==== */
   function escRe(s) { return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"); }
   // whole-word matcher: dots and digits count as part of a word, so "112" does not match "10.0.0.112"
   function wordRe(kw) { return new RegExp("(^|[^a-z0-9.])" + escRe(kw) + "s?($|[^a-z0-9.])"); }
@@ -255,7 +228,7 @@
     emit("lookup", { q: qq, bucket: bucket, stage: L, recorded: true });
   }
 
-  /* ---------- lookup UI ---------- */
+  /* ==== lookup UI ==== */
   var lkBusy = false, lkAutoDone = false, lkLastInputAt = 0;
   function lkOut(items) {
     var out = $("lk-out"); if (!out) return;
@@ -363,9 +336,7 @@
     })();
   }
 
-  /* ------------------------------------------------------------------ */
-  /* Devices                                                             */
-  /* ------------------------------------------------------------------ */
+  /* ==== Devices ==== */
   var dropped = {}, dropping = {}, firstDropToast = false;
   function selfSince() {
     var s = typeof US.sinceConnect === "function" ? US.sinceConnect() : 0;
@@ -453,9 +424,7 @@
     try { if (typeof dlg.close === "function" && dlg.open) dlg.close(); else dlg.removeAttribute("open"); } catch (e) { dlg.removeAttribute("open"); }
   }
 
-  /* ------------------------------------------------------------------ */
-  /* DHCP / Lease                                                        */
-  /* ------------------------------------------------------------------ */
+  /* ==== DHCP / Lease ==== */
   var lastRenewT = 30, renewSlots = -1, bigDone = false, expiring = null, renewIdx = 0;
   function hms(s) { s = Math.max(0, Math.floor(s)); return two(Math.floor(s / 3600)) + ":" + two(Math.floor(s / 60) % 60) + ":" + two(s % 60); }
   function leaseLeftSecs() {
@@ -533,9 +502,7 @@
   }
   function currentTab() { return document.documentElement.getAttribute("data-tab") || ""; }
 
-  /* ------------------------------------------------------------------ */
-  /* Diagnostics                                                         */
-  /* ------------------------------------------------------------------ */
+  /* ==== Diagnostics ==== */
   var dgMode = "ping", dgBusy = false, dgRuns = {}, dgAutoDone = false;
   function dgSetMode(m) {
     dgMode = m === "trace" ? "trace" : "ping";
@@ -617,9 +584,7 @@
     dgRun(t, true);
   }
 
-  /* ------------------------------------------------------------------ */
-  /* System log + ARP                                                    */
-  /* ------------------------------------------------------------------ */
+  /* ==== System log + ARP ==== */
   var logIdx = {}, nextLogT = null, nextArpT = null, arpIdx = {}, logStarted = false, recentLines = [], logStage = null;
   function logBox() { return $("log-out"); }
   function logWrite(fac, msg, opt) {
@@ -732,9 +697,7 @@
     }
   }
 
-  /* ------------------------------------------------------------------ */
-  /* Routing + NAT                                                       */
-  /* ------------------------------------------------------------------ */
+  /* ==== Routing + NAT ==== */
   function renderRouting() {
     var tb = document.querySelector("#rt-table tbody");
     if (tb) {
@@ -766,9 +729,7 @@
     if (v && !v.hasAttribute("data-l")) v.textContent = val || "";
   }
 
-  /* ------------------------------------------------------------------ */
-  /* run lifecycle                                                       */
-  /* ------------------------------------------------------------------ */
+  /* ==== run lifecycle ==== */
   var runId = 0;
   function resetRun() {
     runId++;
@@ -798,9 +759,7 @@
     dgSetMode(dgMode);
   }
 
-  /* ------------------------------------------------------------------ */
-  /* DOM wiring (delegated, so markup can arrive in any order)            */
-  /* ------------------------------------------------------------------ */
+  /* ==== DOM wiring (delegated, so markup can arrive in any order) ==== */
   document.addEventListener("submit", function (e) {
     var f = e.target;
     if (!f || !f.id) return;
@@ -826,9 +785,7 @@
   });
   document.addEventListener("input", function (e) { if (e.target && e.target.id === "lk-input") lkInput(); });
 
-  /* ------------------------------------------------------------------ */
-  /* events                                                              */
-  /* ------------------------------------------------------------------ */
+  /* ==== events ==== */
   var lastSecond = -1;
   US.on("boot", boot);
   US.on("connect", function () { resetRun(); renderAll(); });
@@ -889,9 +846,7 @@
     if (d.key === "name" || d.key === "day") { renderRecent(); if (d.key === "name") renderDevices(); }
   });
 
-  /* ------------------------------------------------------------------ */
-  /* public                                                              */
-  /* ------------------------------------------------------------------ */
+  /* ==== public ==== */
   US.tools = US.tools || {};
   US.tools.resolve = resolve;
   US.tools.bucket = function (q) { return bucketOf(q); };

@@ -3,7 +3,7 @@
    ping, DNS records, terminal prompt) stays plain ASCII. */
 window.US_CONTENT = {
 
-  /* ---------- 3.1 Portal (B01) ---------- */
+  /* ==== 3.1 Portal (B01) ==== */
   portal: {
     ssid: "UNDERSTORY-GUEST",
     security: "Secured network · WPA3",
@@ -61,7 +61,7 @@ window.US_CONTENT = {
     ]
   },
 
-  /* ---------- 3.2 Handshake (B02) ---------- */
+  /* ==== 3.2 Handshake (B02) ==== */
   hs: {
     lines: [
       "Associating with UNDERSTORY-GUEST…",
@@ -77,7 +77,7 @@ window.US_CONTENT = {
     ]
   },
 
-  /* ---------- 3.3 Router chrome ---------- */
+  /* ==== 3.3 Router chrome ==== */
   panel: {
     brand: "Understory Home Hub",
     model: "UH-6 · Firmware UOS 2.6.1",
@@ -110,7 +110,7 @@ window.US_CONTENT = {
     title: "Subnet mask {mask}. The smaller the network, the fewer hosts it holds."
   },
 
-  /* ---------- 3.4 Status tab ---------- */
+  /* ==== 3.4 Status tab ==== */
   st: {
     internet: { label: "Internet", s0: "Connected", s8: "Connected (local)", s16: "Not needed", s24: "—", s30: "There isn’t one." },
     quality:  { label: "Network quality", s0: "Excellent", s8: "Excellent", s16: "Very quiet", s24: "Still", s30: "—" },
@@ -155,7 +155,7 @@ window.US_CONTENT = {
     toast: "Your connection is fully local. Nice."
   },
 
-  /* ---------- 3.5 Devices tab ---------- */
+  /* ==== 3.5 Devices tab ==== */
   dev: {
     count: "{shown} shown · {hosts} on network",
     countBig: "Showing {shown} of {hosts}",
@@ -216,7 +216,7 @@ window.US_CONTENT = {
     ]
   },
 
-  /* ---------- 3.6 DHCP / Lease ---------- */
+  /* ==== 3.6 DHCP / Lease ==== */
   dhcp: {
     title: "DHCP leases",
     cols: ["Device", "Address", "MAC", "Expires"]
@@ -241,7 +241,7 @@ window.US_CONTENT = {
     expiresCol: { s0: "{leaseLeft}", s24: "never", s30: "—" }
   },
 
-  /* ---------- 3.7 DNS Lookup ---------- */
+  /* ==== 3.7 DNS Lookup ==== */
   lk: {
     title: "DNS Lookup",
     help: "Find the address of any website or device.",
@@ -441,7 +441,7 @@ window.US_CONTENT = {
     edit: { exit: "stay", help: "here", search: "you", news: "home", social: "everyone", profanity: "sorry", who: "who am i", self: "{name}, here", other: "{lastQuery} please" }
   },
 
-  /* ---------- 3.8 Diagnostics ---------- */
+  /* ==== 3.8 Diagnostics ==== */
   dg: {
     title: "Diagnostics",
     help: "Test the path from this router to any address.",
@@ -519,7 +519,7 @@ window.US_CONTENT = {
     }
   },
 
-  /* ---------- 3.9 System log (machine text, ASCII) ---------- */
+  /* ==== 3.9 System log (machine text, ASCII) ==== */
   log: {
     s0: [
       "kernel: Understory OS 2.6.1 booting (build heartwood-ext)",
@@ -615,7 +615,7 @@ window.US_CONTENT = {
     }
   },
 
-  /* ---------- 3.10 ARP ---------- */
+  /* ==== 3.10 ARP ==== */
   arp: {
     s8: [
       "arp: who-has 172.16.0.14 tell {gw}",
@@ -651,7 +651,7 @@ window.US_CONTENT = {
     ]
   },
 
-  /* ---------- 3.11 Routing ---------- */
+  /* ==== 3.11 Routing ==== */
   rt: {
     title: "Routing table",
     cols: ["Destination", "Gateway", "Mask", "Interface", "Metric"],
@@ -685,7 +685,7 @@ window.US_CONTENT = {
     }
   },
 
-  /* ---------- 3.4 / 3.12 Toasts ---------- */
+  /* ==== 3.4 / 3.12 Toasts ==== */
   toast: {
     welcome: { t: "Welcome, {name}! Your router is ready.", alt: "Welcome! Your router is ready." },
     tips: [
@@ -699,7 +699,7 @@ window.US_CONTENT = {
     mask24: "Network tidied again. It’s nicer with fewer of us."
   },
 
-  /* ---------- 3.13 Status bar line under the HUD ---------- */
+  /* ==== 3.13 Status bar line under the HUD ==== */
   maskLine: {
     s8: "The network is getting smaller. That’s alright. Small is warm.",
     s16: "Sixty-five thousand addresses. Nine of them awake.",
@@ -708,7 +708,7 @@ window.US_CONTENT = {
     s32: "One."
   },
 
-  /* ---------- 3.14 Idle lines: index 0 = 12 s, 1 = 25 s, 2 = 45 s ---------- */
+  /* ==== 3.14 Idle lines: index 0 = 12 s, 1 = 25 s, 2 = 45 s ==== */
   idle: {
     s0: ["Need a hand? Everything’s set up for you.", "Your network is running smoothly.", "Still here? Great. So is the network."],
     s8: ["Nothing to do. That’s the idea.", "You can just sit. Lots of guests just sit.", "Quiet is fine. Quiet is most of what we do here."],
@@ -718,7 +718,7 @@ window.US_CONTENT = {
     s32: ["…", "Here.", "Still here."]
   },
 
-  /* ---------- 3.15 Away ---------- */
+  /* ==== 3.15 Away ==== */
   title: {
     normal: { s0: "Understory · {tabLabel}", s24: "{tabLabel}", s30: "{name}@understory", s32: "{NAME}" },
     away: {
@@ -744,7 +744,7 @@ window.US_CONTENT = {
     long: "That was a long one. I renewed you {awayRenewals} times while you were gone."
   },
 
-  /* ---------- 3.16 Noticing ---------- */
+  /* ==== 3.16 Noticing ==== */
   notice: {
     deleted: {
       s16: "You took something back. I saw it go.",
@@ -758,7 +758,7 @@ window.US_CONTENT = {
     }
   },
 
-  /* ---------- 3.17 Mashers ---------- */
+  /* ==== 3.17 Mashers ==== */
   mash: {
     s0: "Slow down — too many requests. Try again in a moment.",
     s8: "Easy. The network isn’t going anywhere.",
@@ -768,7 +768,7 @@ window.US_CONTENT = {
     payoff: "You were in a hurry earlier. {mashMax} presses in one second. There’s no hurry here. There’s {hosts} of us and all the time there is."
   },
 
-  /* ---------- 3.18 Face down (B09) ---------- */
+  /* ==== 3.18 Face down (B09) ==== */
   face: {
     title: "One small thing.",
     body: "Turn your phone face down on something soft and leave it for a little while. I’ll keep watch.",
@@ -796,7 +796,7 @@ window.US_CONTENT = {
     after: "Feels lighter, doesn’t it?"
   },
 
-  /* ---------- 3.19 False ending (B10) ---------- */
+  /* ==== 3.19 False ending (B10) ==== */
   done: {
     check: "You’re all set ✓",
     sub: "Your network is optimised. You can close this page.",
@@ -807,7 +807,7 @@ window.US_CONTENT = {
     line2: "Neither did I."
   },
 
-  /* ---------- 3.20 Terminal (B11–B13) ---------- */
+  /* ==== 3.20 Terminal (B11–B13) ==== */
   term: {
     prompt: "{slug:name}@understory:~$",
     disconnect: "[disconnect]",
@@ -921,7 +921,7 @@ window.US_CONTENT = {
     ]
   },
 
-  /* ---------- 3.21 Coda, Disconnect, Manifest, Forget ---------- */
+  /* ==== 3.21 Coda, Disconnect, Manifest, Forget ==== */
   coda: {
     ssid: "{NAME}",
     security: "Secured by you",
@@ -1019,7 +1019,7 @@ window.US_CONTENT = {
     after: "(I’ll miss you the way a cleared cache misses things: not at all, and completely.)"
   },
 
-  /* ---------- 3.22 Second visit ---------- */
+  /* ==== 3.22 Second visit ==== */
   ret: {
     title: "Welcome back, {name}.",
     sub: "We kept your lease.",
@@ -1029,7 +1029,7 @@ window.US_CONTENT = {
     lastDisconnect: "You disconnected last time. I liked that you could."
   },
 
-  /* ---------- 3.23 Share ---------- */
+  /* ==== 3.23 Share ==== */
   share: {
     button: "Share the Wi-Fi with someone you love",
     nameToggle: "Put my name on it ({name})",

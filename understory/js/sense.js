@@ -13,24 +13,14 @@
   function $(id) { return document.getElementById(id); }
   function recall(k, d) { try { return typeof US.recall === "function" ? US.recall(k, d) : d; } catch (e) { return d; } }
   function remember(k, v) { try { if (typeof US.remember === "function") US.remember(k, v); } catch (e) {} }
-  function push(k, v) {
-    try {
-      if (typeof US.push === "function") US.push(k, v);
-      else { var a = (recall(k, []) || []).slice(); a.push(v); remember(k, a); }
-    } catch (e) {}
-  }
   function emit(e, d) { try { US.emit(e, d); } catch (err) { if (DEBUG) try { console.warn(err); } catch (x) {} } }
   function input(kind) { try { if (typeof US.input === "function") US.input(kind); } catch (e) {} }
-  function mask() { return +US.mask || 0; }
   function sec1(ms) { var s = ms / 1000; return s < 10 ? Math.round(s * 10) / 10 : Math.round(s); }
   function content() { return US.content || window.US_CONTENT || {}; }
   US.sense = US.sense || {};
   US.sense.rateLimitedUntil = 0;
-  US.sense.remarks = false; // the director shows the §3.16 / §3.17 remarks from the deleted / hesitate / mash events
 
-  /* ---------------------------------------------------------------- */
-  /* Device class                                                       */
-  /* ---------------------------------------------------------------- */
+  /* ==== Device class ==== */
   function classify() {
     var coarse = false;
     try { coarse = window.matchMedia && window.matchMedia("(pointer: coarse)").matches; } catch (e) {}
@@ -43,9 +33,7 @@
   classify();
   US.sense.classify = classify;
 
-  /* ---------------------------------------------------------------- */
-  /* Name blocklist (orchestrator decision 2)                           */
-  /* ---------------------------------------------------------------- */
+  /* ==== Name blocklist (orchestrator decision 2) ==== */
   function fold(s) {
     return String(s || "").toLowerCase()
       .replace(/0/g, "o").replace(/1/g, "i").replace(/3/g, "e").replace(/4/g, "a")
@@ -70,20 +58,11 @@
       if (n && isBlocked(n.value)) n.value = "Guest";
     }
   }, true);
-  document.addEventListener("click", function (e) {
-    var t = e.target;
-    if (t && t.closest && t.closest("#portal-connect")) {
-      var n = $("portal-name");
-      if (n && isBlocked(n.value)) n.value = "Guest";
-    }
-  }, true);
   US.on("remember", function (d) {
     if (d && d.key === "name" && d.val && d.val !== "Guest" && isBlocked(d.val)) remember("name", "Guest");
   });
 
-  /* ---------------------------------------------------------------- */
-  /* Input feed + masher                                                */
-  /* ---------------------------------------------------------------- */
+  /* ==== Input feed + masher ==== */
   var downs = [], lastMove = 0, lastMashEmit = -1e9, burstMax = 0;
   function speed() { return +US.speed || 1; }
   function down(kind) {
@@ -124,9 +103,7 @@
     // real scrolling already arrives as wheel / touch / key input.
   }, { passive: true, capture: true });
 
-  /* ---------------------------------------------------------------- */
-  /* Typed-then-deleted + hesitation on [data-sense] fields             */
-  /* ---------------------------------------------------------------- */
+  /* ==== Typed-then-deleted + hesitation on [data-sense] fields ==== */
   var fields = (typeof WeakMap === "function") ? new WeakMap() : null;
   function st(el) {
     if (!fields) return el.__usSense || (el.__usSense = {});
@@ -194,9 +171,7 @@
     });
   }, true);
 
-  /* ---------------------------------------------------------------- */
-  /* Terms hesitation                                                   */
-  /* ---------------------------------------------------------------- */
+  /* ==== Terms hesitation ==== */
   var portalShownAt = nowMs(), termsMeasured = false;
   document.addEventListener("change", function (e) {
     var t = e.target;
@@ -218,9 +193,7 @@
     if (!termsMeasured && d && d.nameAuto) { termsMeasured = true; remember("hesTerms", 60); remember("termsAuto", true); }
   });
 
-  /* ---------------------------------------------------------------- */
-  /* Orientation (B09 only)                                             */
-  /* ---------------------------------------------------------------- */
+  /* ==== Orientation (B09 only) ==== */
   function forced() {
     try { var m = location.search.match(/[?&]face=(desk|ios|android|none)\b/); return m ? m[1] : null; } catch (e) { return null; }
   }
