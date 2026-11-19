@@ -204,7 +204,8 @@
       var s = fmtRaw(list[i], { awayCount: recall("awayCount", 0) || null });
       if (s == null) continue;
       unaskedShown[i] = (unaskedShown[i] || 0) + 1;
-      out.push(ascii(s));
+      var mm = ascii(s).match(/^(\S+)\s+(A\s+.*)$/);
+      out.push(mm ? pad(mm[1], 28) + " " + mm[2] : ascii(s));
     }
     return out;
   }

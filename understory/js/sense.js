@@ -120,7 +120,8 @@
         if (f > (+recall("termsScroll", 0) || 0)) remember("termsScroll", Math.round(f * 100) / 100);
       }
     }
-    input("wheel");
+    // scroll itself is not counted as input: pages scroll programmatically (log auto-scroll);
+    // real scrolling already arrives as wheel / touch / key input.
   }, { passive: true, capture: true });
 
   /* ---------------------------------------------------------------- */
@@ -235,7 +236,10 @@
       var f = forced();
       if (f === "ios") return true;
       if (f) return false;
-      return typeof window.DeviceOrientationEvent !== "undefined" && typeof window.DeviceOrientationEvent.requestPermission === "function";
+      if (typeof window.DeviceOrientationEvent === "undefined" || typeof window.DeviceOrientationEvent.requestPermission !== "function") return false;
+      // Some Chromium builds expose requestPermission but never prompt; only iOS/iPadOS Safari asks the visitor.
+      var ua = navigator.userAgent || "";
+      return /iPhone|iPad|iPod/.test(ua) || (/Macintosh/.test(ua) && (navigator.maxTouchPoints || 0) > 1);
     },
     // 'ios' | 'android' | 'desk' — which B09 path to show
     path: function () {

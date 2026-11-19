@@ -436,7 +436,7 @@
     if (!term) termReset();
     opt = opt || {};
     if (opt.idle && (term.cur || term.q.length || term.src.length)) return;   // idle lines only into silence
-    var item = { text: String(text), m: !!opt.machine, whole: !!opt.whole, cls: opt.cls || null, pause: opt.pause != null ? opt.pause : (opt.machine ? 200 : 900) };
+    var item = { at: now(), text: String(text), m: !!opt.machine, whole: !!opt.whole, cls: opt.cls || null, pause: opt.pause != null ? opt.pause : (opt.machine ? 200 : 900) };
     if (opt.front) term.q.unshift(item); else if (opt.src) term.src.push(item); else term.q.push(item);
   }
   S.termPrint = tprint;
@@ -447,26 +447,31 @@
   }
   function termStep() {
     if (!term || US.state !== 'term') return;
-    var t = now();
-    var c = term.cur;
-    if (c) {
-      if (!c.doneAt) {
-        var n = (US.reduced || c.m || c.whole) ? c.text.length : Math.floor((t - c.start) / 0.038);
-        if (n >= c.text.length) { n = c.text.length; c.doneAt = t; term.lastDone = t; }
-        var s = c.text.slice(0, n);
-        if (c.el.textContent !== s) { c.el.textContent = s; scrollTerm(); }
-      } else if (t - c.doneAt >= c.pause / 1000) term.cur = null;
-    }
-    if (!term.cur) {
-      var next = term.q.shift() || term.src.shift();
-      if (next) {
-        var out = D.getElementById('term-out');
-        next.el = mk('div', 'tl ' + (next.m ? 'mach' : 'say') + (next.cls ? ' ' + next.cls : ''), '');
-        if (out) out.appendChild(next.el);
-        next.start = t; next.doneAt = 0;
-        term.cur = next;
-        if (!next.m) US.a11y(next.text);
+    var t = now(), guard = 0, prevEnd = term.prevEnd || 0;
+    // speed-independent: several lines may start and finish inside one tick
+    while (guard++ < 60) {
+      var c = term.cur;
+      if (c) {
+        if (!c.doneAt) {
+          var dur = (US.reduced || c.m || c.whole) ? 0 : c.text.length * 0.038;
+          var n = dur ? Math.floor((t - c.start) / 0.038) : c.text.length;
+          if (n >= c.text.length) { n = c.text.length; c.doneAt = c.start + dur; term.lastDone = c.doneAt; }
+          var s = c.text.slice(0, Math.max(0, n));
+          if (c.el.textContent !== s) { c.el.textContent = s; scrollTerm(); }
+          if (!c.doneAt) break;
+        }
+        var end = c.doneAt + c.pause / 1000;
+        if (t < end) break;
+        term.cur = null; prevEnd = term.prevEnd = end;
       }
+      var next = term.q.shift() || term.src.shift();
+      if (!next) break;
+      var out = D.getElementById('term-out');
+      next.el = mk('div', 'tl ' + (next.m ? 'mach' : 'say') + (next.cls ? ' ' + next.cls : ''), '');
+      if (out) out.appendChild(next.el);
+      next.start = Math.min(t, Math.max(prevEnd, next.at == null ? t : next.at)); next.doneAt = 0;
+      term.cur = next;
+      if (!next.m) US.a11y(next.text);
     }
     var idle = !term.cur && !term.q.length && !term.src.length;
     // payoff interjections, T 320–360, max 6: whenever the terminal has been idle 4 s,
@@ -493,7 +498,7 @@
     while (term.payIdx < list.length) {
       var p = list[term.payIdx++];
       var s = payText(p);
-      if (s) { term.src.unshift({ text: s, m: false, pause: 900 }); term.pay++; return true; }
+      if (s) { term.src.unshift({ at: now(), text: s, m: false, pause: 900 }); term.pay++; return true; }
     }
     return false;
   }
@@ -502,25 +507,24 @@
     var mono = arr('term.monologue');
     mono.forEach(function (m, i) {
       var t = typeof m === 'string' ? F(m) : F(m.t);
-      if (t != null) term.src.push({ text: t, m: !!(m && m.m), pause: m && m.m ? 400 : 900 });
+      if (t != null) term.src.push({ at: now(), text: t, m: !!(m && m.m), pause: m && m.m ? 400 : 900 });
       if (i === 3) {
         var h = new Date().getHours();
         var tl = L(h < 5 ? 'term.timeNight' : 'term.timeDay');
-        if (tl) term.src.push({ text: tl, m: false, pause: 900 });
+        if (tl) term.src.push({ at: now(), text: tl, m: false, pause: 900 });
       }
     });
-    if (US.isReturn()) { var r = L('term.return'); if (r) term.src.push({ text: r, m: false, pause: 900 }); }
+    if (US.isReturn()) { var r = L('term.return'); if (r) term.src.push({ at: now(), text: r, m: false, pause: 900 }); }
     // machine lines from the log and ARP (s30), interleaved with the speech
     var logs = arr('log.s30').slice(1), arps = arr('arp.s30');
     logs.forEach(function (l, i) { termAt(311 + i * 5, function () { tprint(F(l), { machine: true }); }); });
     arps.forEach(function (l, i) { termAt(313.5 + i * 5.5, function () { tprint(F(l), { machine: true }); }); });
-    if (jump) term.src = [];
   }
   function termAt(T, fn) { US.schedule(T, function (info) { if (!info.late && US.state === 'term') fn(); }); }
   function termReady() {
     if (!term) termReset();
     var r = L('term.ready');
-    if (r) term.src.push({ text: r, m: false, pause: 900 });   // after the monologue, whenever that is
+    if (r) term.src.push({ at: now(), text: r, m: false, pause: 900 });   // after the monologue, whenever that is
     term.inputOn = true;
     var inp = D.getElementById('term-input');
     if (inp) { inp.disabled = false; try { inp.focus({ preventScroll: true }); } catch (e) { /* */ } }

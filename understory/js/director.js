@@ -1111,6 +1111,7 @@
     dbgEl = dbgEl || $('debug');
     if (!dbgEl) return;
     dbgEl.hidden = false;
+    dbgEl.style.pointerEvents = 'none';
     var summary = ['name', 'day', 'deleted', 'hesTerms', 'deviceTapped', 'lookupCount', 'awayCount', 'mashMax', 'faceOutcome', 'renewals', 'visits']
       .map(function (k) { var v = k === 'lookupCount' ? (mem.lookups || []).length : mem[k]; return v == null ? null : k + '=' + v; }).filter(Boolean).join(' ');
     dbgEl.textContent = 'T ' + clock.T.toFixed(1) + '  P ' + clock.P.toFixed(1) + '  ×' + SPEED + '\n' +
