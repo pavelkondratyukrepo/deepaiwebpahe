@@ -452,13 +452,13 @@
     while (guard++ < 60) {
       var c = term.cur;
       if (c) {
-        if (!c.doneAt) {
+        if (c.doneAt == null) {
           var dur = (US.reduced || c.m || c.whole) ? 0 : c.text.length * 0.038;
           var n = dur ? Math.floor((t - c.start) / 0.038) : c.text.length;
           if (n >= c.text.length) { n = c.text.length; c.doneAt = c.start + dur; term.lastDone = c.doneAt; }
           var s = c.text.slice(0, Math.max(0, n));
           if (c.el.textContent !== s) { c.el.textContent = s; scrollTerm(); }
-          if (!c.doneAt) break;
+          if (c.doneAt == null) break;
         }
         var end = c.doneAt + c.pause / 1000;
         if (t < end) break;
@@ -469,7 +469,7 @@
       var out = D.getElementById('term-out');
       next.el = mk('div', 'tl ' + (next.m ? 'mach' : 'say') + (next.cls ? ' ' + next.cls : ''), '');
       if (out) out.appendChild(next.el);
-      next.start = Math.min(t, Math.max(prevEnd, next.at == null ? t : next.at)); next.doneAt = 0;
+      next.start = Math.min(t, Math.max(prevEnd, next.at == null ? t : next.at)); next.doneAt = null;
       term.cur = next;
       if (!next.m) US.a11y(next.text);
     }
