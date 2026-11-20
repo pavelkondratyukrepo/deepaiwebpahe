@@ -46,7 +46,22 @@
     },
     progress: function (el) { return progressOf(el); },
     mix: function (a, b, t) { return toHex(mixRGB(parseHex(a), parseHex(b), clamp(+t || 0, 0, 1))); },
-    debug: {}
+    debug: {},
+    whisper: function (t, hold) { whisper(t, hold || 6000); },
+    hush: false,            // true while the climax wants silence: no whispers, no notifications
+    where: 'hero',          // id of the section under the middle of the screen
+    floorAtLeast: function (x) { x = +x; if (x > 0 && pin === null) floor = Math.max(floor, Math.min(1, x)); },
+    hm: function (d) { d = d ? new Date(d) : new Date(); return (d.getHours() < 10 ? '0' : '') + d.getHours() + ':' + (d.getMinutes() < 10 ? '0' : '') + d.getMinutes(); },
+    dur: function (sec) {
+      sec = Math.max(1, Math.round(sec));
+      function pl(n, w) { return n + ' ' + w + (n === 1 ? '' : 's'); }
+      if (sec < 60) return pl(sec, 'second');
+      var m = Math.floor(sec / 60), s = sec % 60;
+      if (m < 60) return pl(m, 'minute') + (s ? ' and ' + pl(s, 'second') : '');
+      var h = Math.floor(m / 60); m = m % 60;
+      if (h < 48) return pl(h, 'hour') + (m ? ' and ' + pl(m, 'minute') : '');
+      return pl(Math.round(h / 24), 'day');
+    }
   };
   if (mq) {
     var onMQ = function (e) { HW.reduced = !!e.matches; };
@@ -124,6 +139,10 @@
   var dirty = true;
 
   var scrollD = 0, peak = 0, floor = pin !== null ? pin : 0, bumps = 0;
+  if (pin === null && prevVisit && +prevVisit.n > 0) {
+    // a return visit opens already ruined: it kept your place
+    floor = Math.min(0.66, 0.4 + 0.07 * (Math.min(4, +prevVisit.n) - 1) + (prevVisit.end ? 0.12 : 0));
+  }
   var activeTime = 0, lastFrame = 0;
   var emittedD = -1, emittedStage = 0;
   var lastInput = now(), idleFired = 0;
@@ -133,6 +152,63 @@
   var polarityDark = true;     // fg pole: true = dark text on light bg
 
   /* ---------------------------------------------------------
+     0b. What it notices. Everything here stays in this browser:
+     a small record in localStorage and an in-memory HW.seen.
+     Nothing is ever sent anywhere (there is no network code at all).
+     --------------------------------------------------------- */
+  var MEM_KEY = 'heartwood.visit.v2';
+  function memRead() {
+    try { var v = JSON.parse(localStorage.getItem(MEM_KEY) || 'null'); return v && typeof v === 'object' ? v : null; } catch (e) { return null; }
+  }
+  function memWrite(v) { try { localStorage.setItem(MEM_KEY, JSON.stringify(v)); return true; } catch (e) { return false; } }
+  var qs = (function () { try { return new URLSearchParams(location.search); } catch (e) { return { has: function () { return false; } }; } })();
+  if (qs.has('forget')) { try { localStorage.removeItem(MEM_KEY); } catch (e) {} }
+  var prevVisit = memRead();
+  var SEEN = HW.seen = {
+    arrival: Date.now(),
+    visit: (prevVisit && +prevVisit.n > 0 ? +prevVisit.n : 0) + 1,
+    prev: prevVisit,          // what it kept from last time (or null)
+    away: [],                 // [{at, sec}] each time the tab was hidden and came back
+    awayCount: 0,
+    reversals: 0,             // times they scrolled a long way back up
+    drafts: [],               // chat.js: {text, at, timeline, fate:'sent'|'deleted'|'abandoned'}
+    tookBack: null,           // chat.js: the biggest thing typed and then deleted
+    hesitation: null,         // chat.js: {sec, before}
+    sent: [],                 // chat.js: typed messages {text, at}
+    chips: [],                // chat.js: suggestion chips they let speak for them
+    deepest: 'hero',
+    reachedEnd: false
+  };
+  var forgotten = false;
+  HW.memory = {
+    save: function () {
+      if (forgotten) return;
+      var last = SEEN.sent.length ? SEEN.sent[SEEN.sent.length - 1].text : (prevVisit && prevVisit.said) || '';
+      memWrite({
+        n: SEEN.visit,
+        first: (prevVisit && prevVisit.first) || SEEN.arrival,
+        last: Date.now(),
+        arrivalHM: HW.hm(SEEN.arrival),
+        leftHM: HW.hm(),
+        section: HW.where || 'hero',
+        total: Math.round(((prevVisit && +prevVisit.total) || 0) + HW.elapsed()),
+        said: String(last || '').replace(/\s+/g, ' ').trim().slice(0, 48),
+        tookBack: SEEN.tookBack ? SEEN.tookBack.text.length : ((prevVisit && prevVisit.tookBack) || 0),
+        end: !!(SEEN.reachedEnd || (prevVisit && prevVisit.end)),
+        predicted: SEEN.reachedEnd ? HW.hm(SEEN.arrival) : ((prevVisit && prevVisit.predicted) || ''),
+        sound: HW.soundPref || (prevVisit && prevVisit.sound) || ''
+      });
+    },
+    forget: function () {
+      forgotten = true;
+      try { localStorage.removeItem(MEM_KEY); } catch (e) {}
+      SEEN.prev = null; prevVisit = null;
+    },
+    get: memRead
+  };
+  HW.memory.save();
+
+    /* ---------------------------------------------------------
      1. Section geometry (cached; recomputed only when layout changes)
      --------------------------------------------------------- */
   function collectSections() {
@@ -184,6 +260,7 @@
     adhoc = [];
   }
 
+  function sectionIndex(id) { for (var k = 0; k < sections.length; k++) if (sections[k].el.id === id) return k; return -1; }
   function computeScrollD() {
     var n = sections.length; if (!n) return 0;
     var mid = (window.scrollY || 0) + vh * 0.5;
@@ -191,6 +268,10 @@
     for (var k = n - 1; k >= 0; k--) { if (mid >= sections[k].top) { i = k; break; } }
     var s = sections[i], nx = sections[Math.min(n - 1, i + 1)];
     var t = clamp((mid - s.top) / s.h, 0, 1);
+    if (s.el.id && HW.where !== s.el.id) {
+      HW.where = s.el.id;
+      if (i > sectionIndex(SEEN.deepest)) SEEN.deepest = s.el.id;
+    }
     scrollPal = paletteBetween(s, nx, smooth(0.35, 1, t));
     return lerp(s.d, nx.d, t);
   }
@@ -588,7 +669,7 @@
      --------------------------------------------------------- */
   var whisperOn = false, whisperAt = 0, whisperTimer = 0, whisperMin = 1400;
   function whisper(text, hold) {
-    if (!whisperEl) return;
+    if (!whisperEl || HW.hush) return;
     whisperEl.textContent = text;
     whisperEl.classList.add('on');
     whisperOn = true; whisperAt = now(); whisperMin = hold ? 3800 : 1600;
@@ -618,7 +699,7 @@
     }
   };
   function onIdle(sec) {
-    if (HW.d < 0.5) return;
+    if (HW.d < 0.5 || HW.hush) return;
     if (whisperOn && now() - whisperAt < whisperMin + 2000) return;   // don't talk over itself
     var set = HW.d >= 0.75 ? IDLE_LINES.late : IDLE_LINES.mid;
     var line = pick(set[sec] || set[8]);
@@ -635,30 +716,66 @@
     '(3) Heartwood — made of you',
     '(∞) Heartwood — still here'
   ];
-  var AWAY = [null, '✨ Heartwood — we saved your progress', '✨ Heartwood — we saved your progress',
-    '(1) it noticed you left', 'it’s keeping the door open', 'come back. it’s warm.'];
-  var RETURN_LINES = [null, null, null,
-    'you came back. it knew you would.',
-    'welcome back. it didn’t move. it can’t.',
-    'you came back. it grew a ring while you were gone.'];
-  function setTitle() {
+  // while the tab is hidden, the title keeps talking (and fx.js badges the favicon)
+  var AWAY_SOFT = ['✨ Heartwood — we saved your progress', '(1) Heartwood — new message'];
+  var AWAY_LATE = [
+    'it noticed you left', 'it’s keeping your place', '{said}', 'it’s still here',
+    'it read your last message again', 'it’s warm in here', 'come back when you’re ready', 'it hasn’t moved'
+  ];
+  var awayTimer = 0, awayTick = 0, awayTitle = '';
+  function awayLine() {
     var s = HW.stage;
-    var t = (document.visibilityState === 'hidden' && AWAY[s]) ? AWAY[s] : TITLES[s];
+    if (s <= 0) return null;
+    if (s <= 2) return AWAY_SOFT[Math.min(1, awayTick > 2 ? 1 : 0)];
+    var k = awayTick % AWAY_LATE.length, l = AWAY_LATE[k];
+    if (l === '{said}') { var sd = lastSaid(); l = sd ? 'you were saying “' + sd + '”' : 'it’s listening to the quiet'; }
+    return '(' + Math.min(9, SEEN.awayCount) + ') ' + l;
+  }
+  function setTitle() {
+    var t = (document.visibilityState === 'hidden' && awayTitle) ? awayTitle : TITLES[HW.stage];
     if (document.title !== t) document.title = t;
   }
+  function awayStep() {
+    awayTick++;
+    var sec = (now() - hiddenAt) / 1000;
+    if (HW.stage >= 1 && (awayTick === 1 || awayTick % 2 === 0)) SEEN.awayCount = Math.min(9, SEEN.awayCount + 1);
+    awayTitle = awayLine() || '';
+    setTitle();
+    HW.emit('away', { sec: sec, count: SEEN.awayCount });
+  }
   function onVisibility() {
-    if (document.visibilityState === 'hidden') { hiddenAt = now(); }
-    else {
+    if (document.visibilityState === 'hidden') {
+      hiddenAt = now(); awayTick = 0; SEEN.awayCount = 0;
+      HW.memory.save();
+      clearInterval(awayTimer);
+      awayStep();
+      awayTimer = setInterval(awayStep, 4000);
+    } else {
+      clearInterval(awayTimer); awayTimer = 0;
       var away = hiddenAt ? (now() - hiddenAt) / 1000 : 0;
-      hiddenAt = 0;
+      hiddenAt = 0; awayTitle = '';
       lastFrame = 0;
       lastInput = now(); idleFired = 0;
-      if (away > 3 && HW.stage >= 3 && RETURN_LINES[HW.stage]) {
-        HW.bump(0.02);
-        whisper(RETURN_LINES[HW.stage], 6500);
+      if (away > 1.5) {
+        SEEN.away.push({ at: Date.now() - away * 1000, sec: away, count: SEEN.awayCount });
+        if (HW.stage >= 2) HW.bump(0.02);
+        HW.emit('back', { sec: away, count: SEEN.awayCount, stage: HW.stage });
       }
     }
     setTitle();
+  }
+  window.addEventListener('pagehide', function () { HW.memory.save(); });
+  setInterval(function () { HW.memory.save(); }, 10000);
+
+  // scrolling a long way back up: "checking whether it changed"
+  var revAnchor = 0, revLastY = 0, revUp = false;
+  function trackReversal() {
+    var y = window.scrollY || 0;
+    if (y > revLastY + 2) { if (revUp) revAnchor = y; revUp = false; if (y > revAnchor) revAnchor = y; }
+    else if (y < revLastY - 2) {
+      if (!revUp && revAnchor - y > Math.max(500, vh * 0.8)) { revUp = true; SEEN.reversals++; HW.emit('reversal', SEEN.reversals); }
+    }
+    revLastY = y;
   }
 
   /* ---------------------------------------------------------
@@ -794,6 +911,7 @@
     }
 
     // input / idle
+    window.addEventListener('scroll', trackReversal, { passive: true });
     ['scroll', 'wheel', 'keydown', 'pointerdown', 'touchstart'].forEach(function (ev) {
       window.addEventListener(ev, onInput, { passive: true });
     });
