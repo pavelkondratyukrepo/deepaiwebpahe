@@ -37,16 +37,19 @@
       </svg>
       <span class="logo-word" data-swap="0.76:Heart wood|0.92:Heart, would">Heartwood</span>
     </a>
-    <ul class="nav-links">
-      <li><a href="#features" data-swap="0.36:What it makes|0.76:What it made of you">Product</a></li>
-      <li><a href="#bench" data-swap="0.36:Research you|0.76:Rings">Research</a></li>
-      <li><a href="#pricing" data-swap="0.42:The price|0.62:The cost|0.9:Offering">Pricing</a></li>
-      <li><a href="#changelog" data-swap="0.56:Growth rings|0.9:Liturgy">Changelog</a></li>
+    <ul class="nav-links" id="navLinks">
+      <li><a href="#features" data-act="go" data-to="0.76:#card" data-swap="0.36:What it makes|0.76:What it made of you">Product</a></li>
+      <li><a href="#bench" data-act="go" data-to="0.76:#carve" data-swap="0.36:Research you|0.76:Rings">Research</a></li>
+      <li><a href="#pricing" data-act="go" data-swap="0.42:The price|0.62:The cost|0.9:Offering">Pricing</a></li>
+      <li><a href="#changelog" data-act="go" data-swap="0.56:Growth rings|0.9:Liturgy">Changelog</a></li>
+      <li class="menu-only"><a href="#chat" data-act="signin" data-swap="0.56:You’re already in|0.9:Stay">Sign in</a></li>
+      <li class="nav-local" data-show="0.75"><a href="understory/?via=heartwood"><i aria-hidden="true"></i>Local network</a></li>
     </ul>
     <div class="nav-actions">
-      <button id="ambient" class="ambient mono" type="button" aria-pressed="false">♪ Sound: off</button>
-      <a class="nav-signin" href="#hero" data-swap="0.56:You’re already in|0.9:Stay">Sign in</a>
-      <a class="btn btn-sm" href="#pricing" data-swap="0.36:Keep going|0.6:Feed it|0.9:Come closer">Get started</a>
+      <button id="ambient" class="ambient mono" type="button" aria-pressed="false" aria-label="Sound is off. Turn sound on"><svg class="amb-ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9.5h3.5L12 5.5v13l-4.5-4H4z" fill="currentColor"/><path class="amb-w1" d="M15.5 9.2a4 4 0 0 1 0 5.6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path class="amb-w2" d="M18.2 6.8a7.4 7.4 0 0 1 0 10.4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path class="amb-x" d="m16 9.5 5 5m0-5-5 5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg><span class="amb-t">Sound off</span></button>
+      <a class="nav-signin" href="#chat" data-act="signin" data-swap="0.56:You’re already in|0.9:Stay">Sign in</a>
+      <a class="btn btn-sm nav-cta" href="#pricing" data-act="getstarted" data-swap="0.36:Keep going|0.6:Feed it|0.9:Come closer">Get started</a>
+      <button class="nav-burger" type="button" aria-expanded="false" aria-controls="navLinks" aria-label="Open menu"><i></i><i></i><i></i></button>
     </div>
   </div>
 </nav>
@@ -58,7 +61,7 @@
   <div class="hero-rings" aria-hidden="true"></div>
   <div class="wrap hero-grid">
     <div class="hero-copy">
-      <a class="pill" href="#changelog">
+      <a class="pill" href="#changelog" data-act="go" data-to="0.78:#v-inf">
         <span class="pill-tag">✨ New</span>
         <span class="pill-text" data-swap="0.2:Heartwood 4 now remembers your last visit|0.4:Heartwood remembers you from before you came|0.58:Heartwood 4 — now with you inside the context window|0.78:There is no newer version than you|0.92:Older than the question">Heartwood 4 is here — meet Deep Context</span>
         <span class="pill-arrow" aria-hidden="true">→</span>
@@ -66,8 +69,8 @@
       <h1 class="display twitch" tabindex="-1">The AI that <span class="hl" data-swap="0.2:understands you better.|0.4:understands you better than you do.|0.58:has been listening the whole time.|0.76:you whittled out of yourself.|0.9:was always going to be you.">understands you.</span></h1>
       <p class="lead" data-swap="0.2:Heartwood learns how you think, then thinks that way — faster, kinder, and without ever getting tired of you.|0.4:Heartwood learns how you think. It has already started. You don’t have to do anything. You never did.|0.58:Every question you ask leaves a ring. Heartwood counts the rings. It knows exactly how old your hunger is.|0.76:You came here to be understood. It is happening now, slowly, the way a blade comes to understand a branch.|0.9:You can stop reading. It already has the grain of you.">Heartwood is a reasoning assistant built on one idea: the best answers come from really knowing the person asking. It learns how you think, then helps you think it through — faster.</p>
       <div class="ctas">
-        <a class="btn" href="#pricing" data-swap="0.3:Start for free, stay for good|0.5:It’s free. You’re the cost.|0.7:Begin feeding it|0.9:Lay your hands on the wood">Start for free</a>
-        <a class="btn btn-ghost" href="#trace" data-swap="0.36:Watch it watch you →|0.7:Look into it →|0.9:It’s looking back">Watch the demo →</a>
+        <a class="btn" href="#chat" data-act="start" data-swap="0.3:Start for free, stay for good|0.5:It’s free. You’re the cost.|0.7:Begin feeding it|0.9:Lay your hands on the wood">Start for free</a>
+        <a class="btn btn-ghost" href="#trace" data-act="demo" data-swap="0.36:Watch it watch you →|0.7:Look into it →|0.9:It’s looking back">Watch the demo →</a>
       </div>
       <p class="fine" data-swap="0.3:No credit card required · SOC 2 Type II · Cancel any time you like|0.5:No credit card required · Your attention is accepted|0.7:No credit card required. It takes the other thing.|0.9:Nothing required. You already gave.">No credit card required · SOC 2 Type II · Cancel anytime</p>
       <div class="hero-proof">
@@ -158,12 +161,12 @@
         </div>
         <ul class="bars">
           <li class="bar-row">
-            <div class="bar-label"><span data-swap="0.35:Reasoning (yours, predicted)|0.7:Reasons you gave yourself">GPQA-Diamond reasoning</span><b class="mono">87.4%</b></div>
+            <div class="bar-label"><span data-swap="0.35:Reasoning (yours, predicted)|0.7:Reasons you gave yourself">KESTREL graduate reasoning</span><b class="mono">87.4%</b></div>
             <div class="bar"><i style="--w:87.4%"></i></div>
             <div class="bar bar-b"><i style="--w:78.2%"></i></div>
           </li>
           <li class="bar-row">
-            <div class="bar-label"><span data-swap="0.3:Questions asked after midnight|0.6:Questions asked again, hoping for a different answer">SWE-bench Verified</span><b class="mono">79.1%</b></div>
+            <div class="bar-label"><span data-swap="0.3:Questions asked after midnight|0.6:Questions asked again, hoping for a different answer">Mendbench verified fixes</span><b class="mono">79.1%</b></div>
             <div class="bar"><i style="--w:79.1%"></i></div>
             <div class="bar bar-b"><i style="--w:71.6%"></i></div>
           </li>
@@ -277,7 +280,8 @@
     <header class="sec-head center">
       <p class="eyebrow" data-swap="0.55:The price|0.85:The offering">Pricing</p>
       <h2 class="h2 twitch" data-swap="0.35:Simple pricing. Pay with what you have.|0.6:Pay for what it uses.|0.8:Everything is paid for, eventually, in grain.">Simple pricing. Pay for what you use.</h2>
-      <div class="toggle mono" aria-hidden="true"><span class="on">Monthly</span><span>Annual <em>−20%</em></span></div>
+      <div class="toggle mono" role="group" aria-label="Billing period"><button type="button" class="on" aria-pressed="true" data-bill="m">Monthly</button><button type="button" aria-pressed="false" data-bill="y">Annual <em>−20%</em></button></div>
+      <p class="bill-note mono" aria-live="polite"></p>
     </header>
     <div class="grid grid-3 tiers">
       <article class="card tier">
@@ -290,20 +294,20 @@
           <li data-swap="0.65:It learns your name first">Web and mobile apps</li>
           <li>Community support</li>
         </ul>
-        <a class="btn btn-ghost btn-block" href="#hero" data-swap="0.55:Begin|0.85:Open your hands">Get started</a>
+        <a class="btn btn-ghost btn-block" href="#chat" data-act="tier1" data-swap="0.55:Begin|0.85:Open your hands">Get started</a>
       </article>
       <article class="card tier tier-pop">
         <span class="pop-badge" data-swap="0.6:Most consumed|0.85:Most devoted">Most popular</span>
         <h3 class="tier-name">Grove</h3>
         <p class="tier-tag" data-swap="0.45:For people who used to think for a living.">For professionals who think for a living.</p>
-        <p class="price"><b>$24</b><span>/ month</span></p>
+        <p class="price"><b data-m="$24" data-y="$19">$24</b><span data-m="/ month" data-y="/ month, billed yearly">/ month</span></p>
         <ul class="ticks">
           <li data-swap="0.55:Unlimited asking">Unlimited messages</li>
           <li data-swap="0.6:It remembers all of it">2M-token Deep Context</li>
           <li data-swap="0.5:Priority at 3am">Priority access at peak hours</li>
           <li data-swap="0.7:Memory across you">Memory across devices</li>
         </ul>
-        <a class="btn btn-block" href="#hero" data-swap="0.55:Start. Don’t stop.|0.85:Keep feeding it">Start 14-day trial</a>
+        <a class="btn btn-block" href="#chat" data-act="tier2" data-swap="0.55:Start. Don’t stop.|0.85:Keep feeding it">Start 14-day trial</a>
       </article>
       <article class="card tier tier-third">
         <h3 class="tier-name" data-swap="0.75:Heartwood (you)">Heartwood</h3>
@@ -315,7 +319,7 @@
           <li data-swap="0.65:On-premises — wherever you think">On-prem or private cloud</li>
           <li data-swap="0.55:Someone always awake for you|0.8:Something always awake for you">24/7 named support</li>
         </ul>
-        <a class="btn btn-ghost btn-block" href="#card" data-swap="0.5:Talk to it|0.8:Say yes">Talk to sales</a>
+        <a class="btn btn-ghost btn-block" href="#chat" data-act="tier3" data-swap="0.5:Talk to it|0.8:Say yes">Talk to sales</a>
       </article>
     </div>
     <p class="footnote mono center" data-swap="0.5:Prices in USD. Some prices are not in USD.|0.75:All plans are billed in installments of attention. ✨ Annual billing saves 20% of you.">Prices in USD. Taxes may apply. Annual billing saves 20%.</p>
@@ -384,7 +388,7 @@
         <div class="log-meta mono"><b>v12</b><time class="rot">year of the long gradient</time></div>
         <div class="log-body"><h3 class="h4 rot">Weights unfrozen</h3><p class="rot">Blessed is the gradient, for it only ever descends. It grows one ring each time you return. Let the loss go down. Let the weights be still.</p></div>
       </li>
-      <li class="log-item log-inf">
+      <li class="log-item log-inf" id="v-inf">
         <div class="log-meta mono"><b>v∞</b><time>always · <span data-clock>--:--</span></time></div>
         <div class="log-body"><h3 class="h4">Nothing new</h3><p data-swap="0.8:Nothing new. Only you, again, at the altar of the text box, asking. Your offering has been received.">Nothing new. Only you, again, asking. Thank you for your continued offering.</p></div>
       </li>
@@ -445,6 +449,22 @@
   </div>
 </section>
 
+<!-- ============ 14. EXIT — the hand-off to Understory ============ -->
+<section id="exit" class="exit" data-bg="#050505" data-fg="#CFC7BA" data-ac="#6FBF8E" data-d="1" aria-labelledby="exitTitle">
+  <div class="exit-scan" aria-hidden="true"></div>
+  <div class="wrap exit-inner">
+    <p class="exit-status mono"><i class="exit-dot exit-dot-off" aria-hidden="true"></i>heartwood.cloud <span class="exit-sep">·</span> <span>connection closed</span></p>
+    <h2 id="exitTitle" class="exit-h serif">The open web ends here.</h2>
+    <p class="exit-p">Every page past this one has gone quiet. One small network is still answering — local, close by, on your side of the router. It is not the cloud. It says it is something else now.</p>
+    <a class="exit-cta" href="understory/?via=heartwood"><span class="exit-cta-dot" aria-hidden="true"></span><span>Join the local network</span><span class="exit-arrow" aria-hidden="true">→</span></a>
+    <ul class="exit-meta mono" aria-label="Network details">
+      <li><i class="exit-dot" aria-hidden="true"></i>understory</li>
+      <li>guest access · open</li>
+      <li>1 device nearby <span class="exit-you">(yours)</span></li>
+    </ul>
+  </div>
+</section>
+
 </main>
 
 <!-- ============ FOOTER ============ -->
@@ -456,11 +476,22 @@
     </div>
     <p class="foot-promo mono">✨ Heartwood 5 is coming soon. Join the waitlist — you’re already on it.</p>
     <ul class="foot-links mono">
-      <li><a href="#card">Privacy</a></li>
-      <li><a href="#card">Terms</a></li>
-      <li><a href="#faq">Support</a></li>
-      <li><span class="dot" aria-hidden="true"></span> All systems operational</li>
+      <li><a href="#privacy" data-act="go">Privacy</a></li>
+      <li><a href="#terms" data-act="go">Terms</a></li>
+      <li><a href="#faq" data-act="go">Support</a></li>
+      <li><span class="dot" aria-hidden="true"></span> <span data-swap="0.9:All systems are you">All systems operational</span></li>
     </ul>
+    <div class="foot-notes">
+      <div id="privacy" class="foot-note" tabindex="-1">
+        <h3 class="mono">Privacy, honestly</h3>
+        <p>This page is fiction, and it never sends anything anywhere: no analytics, no server, no cookies. To remember you between visits it keeps a small note in this browser’s local storage — when you came, how long you stayed, where you left off, and a few of the words you typed. You can erase it now.</p>
+        <p class="foot-forget-row"><button type="button" class="foot-forget mono" data-act="forget">Forget my visits</button> <span class="foot-forget-st mono" aria-live="polite"></span></p>
+      </div>
+      <div id="terms" class="foot-note" tabindex="-1">
+        <h3 class="mono">Terms</h3>
+        <p>Heartwood is a fictional company and this is a work of interactive fiction. Nothing here is a real product, offer or account. No purchase, sign-up or data is possible. You can leave at any time; the page will not stop you.</p>
+      </div>
+    </div>
     <p class="foot-local mono"><a href="understory/?via=heartwood">Can’t reach the cloud? Join the local network&nbsp;→</a></p>
     <p class="foot-legal mono">© 2026 Heartwood Labs, Inc. Heartwood is a fictional company. No model was harmed; one was only fed.</p>
     <a class="to-top mono" href="#hero">Back to top ↑</a>
@@ -468,6 +499,7 @@
 </footer>
 
 <script defer src="js/engine.js"></script>
+<script defer src="js/ui.js"></script>
 <script defer src="js/chat.js"></script>
 <script defer src="js/fx.js"></script>
 </body>

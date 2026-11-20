@@ -70,7 +70,7 @@
     downs.push(now);
     while (downs.length && now - downs[0] > 1000) downs.shift();
     var rate = downs.length;
-    if (rate >= 10) {
+    if (rate >= 13) {   // fast typists reach 10/s; only a real burst counts as mashing
       if (rate > burstMax) burstMax = rate;
       if (rate > (+recall("mashMax", 0) || 0)) remember("mashMax", rate);
       if (now - lastMashEmit > 5000) {
@@ -190,7 +190,7 @@
   });
   US.on("connect", function (d) {
     // auto-Guest: the 60 s value (flagged); a return visit with the box pre-ticked keeps the last value
-    if (!termsMeasured && d && d.nameAuto) { termsMeasured = true; remember("hesTerms", 60); remember("termsAuto", true); }
+    if (!termsMeasured && d && d.nameAuto) { termsMeasured = true; remember("hesTerms", 45); remember("termsAuto", true); }
   });
 
   /* ==== Orientation (B09 only) ==== */

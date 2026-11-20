@@ -49,9 +49,10 @@
       </div>
 
       <div class="check-row switch-row" id="portal-sound-row">
+        <span class="sound-ico" aria-hidden="true"></span>
         <span class="check-text">
-          <label for="portal-sound" id="portal-sound-label" data-l="portal.soundLabel">Play connection sounds</label>
-          <span id="portal-sound-hint" data-l="portal.soundHint">Off by default. You can change this later.</span>
+          <span class="sound-head"><label for="portal-sound" id="portal-sound-label" data-l="portal.soundLabel">Connection sounds</label> <span id="portal-sound-badge" data-l="portal.soundBadge">Recommended</span></span>
+          <span id="portal-sound-hint" data-l="portal.soundHint">This network has sound. Tap to hear a test chime, then turn your volume up.</span>
         </span>
         <input id="portal-sound" type="checkbox" class="switch" name="sound" aria-describedby="portal-sound-hint">
       </div>
@@ -70,6 +71,7 @@
   <p id="portal-foot" data-l="portal.foot">Understory Home Hub · Need help? Ask at the front desk.</p>
 
   <button type="button" class="disconnect" id="portal-disconnect" data-l="panel.disconnect">Disconnect</button>
+  <button type="button" class="sound-toggle" id="portal-sound-toggle" aria-pressed="false">Sound: off</button>
 
   <dialog id="terms" aria-labelledby="terms-title">
     <div class="dlg-head">
@@ -243,6 +245,7 @@
               <button type="submit" id="lk-go" class="btn btn-primary" data-l="lk.go">Look up</button>
             </div>
           </form>
+          <div id="lk-try" class="try"><span class="try-label" id="lk-try-label"></span><span class="chips" id="lk-chips"></span></div>
           <p id="lk-early" aria-hidden="true"></p>
           <ol id="lk-out" aria-live="polite"></ol>
         </div>
@@ -267,6 +270,7 @@
               <button type="submit" id="dg-run" class="btn btn-primary" data-l="dg.run">Run</button>
             </div>
           </form>
+          <div id="dg-try" class="try"><span class="try-label" id="dg-try-label"></span><span class="chips" id="dg-chips"></span></div>
           <pre id="dg-out" aria-live="polite"></pre>
         </div>
       </section>
@@ -306,8 +310,9 @@
       <button type="button" id="face-no" class="btn btn-ghost" data-l="face.no">I’d rather not</button>
     </div>
   </div>
-  <div id="face-dark" hidden></div>
+  <div id="face-dark" hidden><svg id="face-ring" viewBox="0 0 120 120" aria-hidden="true"><circle class="fr-track" cx="60" cy="60" r="52"/><circle class="fr-ring" cx="60" cy="60" r="52" pathLength="100"/></svg><p id="face-watch"></p></div>
   <p id="face-msg" aria-live="polite"></p>
+  <button type="button" class="sound-toggle" aria-pressed="false">Sound: off</button>
   <button type="button" class="disconnect" data-l="panel.disconnect">Disconnect</button>
 </section>
 
@@ -320,6 +325,7 @@
     <button type="button" id="done-close" class="btn btn-primary btn-block" data-l="done.close">Close</button>
   </div>
   <div id="done-blank" hidden></div>
+  <button type="button" class="sound-toggle" aria-pressed="false">Sound: off</button>
   <p id="done-line" aria-live="polite"></p>
   <p id="done-line2" aria-live="polite"></p>
   <button type="button" class="disconnect" data-l="panel.disconnect">Disconnect</button>
@@ -329,7 +335,8 @@
 <section class="screen" id="term" hidden aria-label="Terminal">
   <div id="term-head">
     <span id="term-ssid">UNDERSTORY-GUEST</span>
-    <button type="button" class="disconnect" data-l="term.disconnect">[disconnect]</button>
+    <span class="term-acts"><button type="button" class="sound-toggle term-btn" aria-pressed="false">[sound: off]</button>
+    <button type="button" class="disconnect" data-l="term.disconnect">[disconnect]</button></span>
   </div>
   <div class="term-scroll">
     <div id="term-out" role="log" data-focus tabindex="-1"></div>
@@ -342,6 +349,7 @@
   <form id="term-form" novalidate>
     <span id="term-prompt">guest@understory:~$</span>
     <input id="term-input" type="text" data-sense="term" autocomplete="off" autocapitalize="off" spellcheck="false" enterkeyhint="send" aria-labelledby="term-prompt" disabled>
+    <button type="submit" id="term-send" aria-label="Send">&#8629;</button>
   </form>
 </section>
 
@@ -355,6 +363,7 @@
     </form>
     <div id="last-out" aria-live="polite"></div>
   </div>
+  <button type="button" class="sound-toggle term-btn" aria-pressed="false">[sound: off]</button>
   <button type="button" class="disconnect" data-l="term.disconnect">[disconnect]</button>
 </section>
 
@@ -362,6 +371,7 @@
 <section class="screen" id="manifest" hidden role="dialog" aria-labelledby="man-title">
   <div class="sheet">
     <span class="sheet-grip" aria-hidden="true"></span>
+    <a class="back-top" href="../" data-l="man.backShort">← Heartwood</a>
     <h2 id="man-title" data-l="man.title" data-focus tabindex="-1">Node manifest</h2>
     <p id="man-intro" data-l="man.intro">This is everything this page noticed about you, and how it noticed. It all happened inside this browser tab. There is no server: nothing you typed or did was sent anywhere. The network, the other devices and the voice were a story.</p>
     <ul id="man-list"></ul>
@@ -394,7 +404,7 @@
     <div class="sheet-foot">
       <button type="button" id="btn-reconnect" class="btn btn-ghost" data-l="man.reconnect">Reconnect</button>
       <button type="button" id="man-disconnect" class="btn btn-ghost disconnect" data-l="panel.disconnect">Disconnect</button>
-      <a id="btn-back" href="../" data-l="man.back">Back to Heartwood</a>
+      <a id="btn-back" class="btn btn-primary back-link" href="../" data-l="man.back">Back to Heartwood</a>
     </div>
   </div>
 </section>
@@ -410,7 +420,7 @@
       <button type="button" id="disc-forget" class="btn btn-danger btn-block" data-l="disc.forget">Forget me</button>
       <p id="disc-forget-msg" aria-live="polite"></p>
       <button type="button" id="disc-reconnect" class="btn btn-ghost btn-block" data-l="disc.reconnect">Reconnect</button>
-      <a id="disc-back" href="../" data-l="disc.back">Back to Heartwood</a>
+      <a id="disc-back" class="btn btn-ghost btn-block back-link" href="../" data-l="disc.back">Back to Heartwood</a>
     </div>
   </div>
 </section>
@@ -422,7 +432,16 @@
     <span class="hud-label" data-l="hud.label">Subnet</span>
     <span class="hud-value"><span id="hud-cidr">/0</span><span class="hud-sep"> · </span><span id="hud-hosts">4,294,967,294</span><span class="hud-unit"> hosts</span></span>
   </div>
+  <div class="hud-dial" aria-hidden="true"><span class="hud-fill"></span><i style="left:25%"></i><i style="left:50%"></i><i style="left:75%"></i><i style="left:93.75%"></i></div>
   <p id="hud-line" aria-live="polite"></p>
+</div>
+<div id="guide" hidden>
+  <div class="guide-in">
+    <span class="guide-ico" aria-hidden="true"></span>
+    <p class="guide-txt" role="status" aria-live="polite"><span id="guide-eyebrow"></span><span id="guide-text"></span></p>
+    <button type="button" id="guide-act" class="btn btn-primary" hidden></button>
+    <span id="guide-next" aria-hidden="true"><svg viewBox="0 0 36 36"><circle class="gn-track" cx="18" cy="18" r="15"/><circle class="gn-ring" cx="18" cy="18" r="15" pathLength="100"/></svg><span id="guide-secs"></span></span>
+  </div>
 </div>
 <div id="toasts" aria-live="polite"></div>
 <div id="a11y-live" class="sr-only" aria-live="polite"></div>
@@ -435,5 +454,6 @@
 <script defer src="js/audio.js"></script>
 <script defer src="js/qr.js"></script>
 <script defer src="js/scenes.js"></script>
+<script defer src="js/guide.js"></script>
 </body>
 </html>

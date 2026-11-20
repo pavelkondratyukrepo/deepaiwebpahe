@@ -324,7 +324,7 @@
     if (lkAutoDone === true) return;
     var inp = $("lk-input");
     var typing = inp && document.activeElement === inp && inp.value && nowMs() - lkLastInputAt < 3000;
-    if (typing && T() < 145) { after(1500, lkAutoplay); return; }
+    if (typing && T() < 142) { after(1500, lkAutoplay); return; }
     lkAutoDone = true;
     var a = get("lk.auto") || {}, q = a.q || "anyone";
     if (!inp) { lkSubmit(q, true); return; }
@@ -347,6 +347,7 @@
     return { sinceSelf: selfSince(), device: US.device === "desktop" ? "computer" : (US.device || "computer") };
   }
   function devName(d) {
+    if (d.id === "self" && mask() >= 24) { var nm = fmtRaw("{name}"); if (nm) return nm; }
     return fmtRaw(d.name, devExtra()) || (d.id === "self" ? (line("dev.thisDevice") || "This device") : d.name);
   }
   function devList() { return get("dev.list") || []; }
@@ -369,7 +370,9 @@
       li.appendChild(el("span", "dev-name", devName(d)));
       li.appendChild(el("span", "dev-ip", fmtRaw(d.ip, devExtra()) || ""));
       li.appendChild(el("span", "dev-tag", d.id === "self" ? (line("dev.thisDevice") || "This device") : ""));
-      li.appendChild(el("span", "dev-line", dropping[d.id] ? (d.line || "") : ""));
+      var dl = d.line || "", tp = recall("deviceTapped", null);
+      if (tp && tp === devName(d)) dl = line("dev.tappedLine") || dl;
+      li.appendChild(el("span", "dev-line", dropping[d.id] ? dl : ""));
       if (dropping[d.id]) li.classList.add("dropping");
       ul.appendChild(li);
     });
@@ -380,11 +383,13 @@
     if (dropped[d.id] || dropping[d.id]) return;
     if (silent) { dropped[d.id] = true; renderDevices(); return; }
     dropping[d.id] = true;
+    var tapped = recall("deviceTapped", null);
+    if (tapped && tapped === devName(d)) { var tl = line("dev.tappedLine"); if (tl) d = Object.assign({}, d, { line: tl }); }
     var li = document.querySelector('#dev-list li.device[data-id="' + d.id + '"]');
     if (li) { li.classList.add("dropping"); var l = li.querySelector(".dev-line"); if (l) l.textContent = d.line || ""; }
     if (d.line) logWrite("wlan0", ascii(d.line), { kind: "drop" });
     emit("drop", { id: d.id, line: d.line });
-    after(4000, function () { dropping[d.id] = false; dropped[d.id] = true; renderDevices(); });
+    after(5000, function () { dropping[d.id] = false; dropped[d.id] = true; renderDevices(); });
   }
   // polled from tick: each host leaves at its mask's start + dropAt (story time)
   function scheduleDrops() {
@@ -520,6 +525,7 @@
   function alignHop(l) {
     var m = l.match(/^(\s?\d+)\s{2}(.+?)\s{2,}([\d.]+ ms)$/);
     if (!m) return l;
+    if ((window.innerWidth || 0) < 600) return m[1] + "  " + m[2] + "  " + m[3];   // phones: no column padding, so lines wrap cleanly
     return m[1] + "  " + pad(m[2], 40) + " " + m[3];
   }
   function dgRun(target, auto) {
@@ -527,7 +533,7 @@
     if (dgBusy) return;
     if (!auto && rateLimited()) { var rl = line("lk.rateLimited"); if (rl) dgWrite(rl, "say limited"); return; }
     var raw = String(target || "").trim() || "example.com";
-    var tShown = slug(raw, 32) || "0.0.0.0";
+    var tShown = String(raw).toLowerCase().replace(/\s+/g, "-").replace(/[^a-z0-9.\-]/g, "").slice(0, 32) || "0.0.0.0";
     var pre = $("dg-out"); if (pre) pre.textContent = "";
     var run = $("dg-run"), runText = run ? run.textContent : null;
     if (run) { run.textContent = line("dg.running") || "Running…"; run.setAttribute("aria-busy", "true"); }
@@ -598,13 +604,12 @@
     li.appendChild(document.createTextNode(" "));
     li.appendChild(el("span", "msg", msg));
     if (opt.kind) li.setAttribute("data-kind", opt.kind);
+    if (!opt.silent) li.className += " fresh";
     if (opt.q != null) li.setAttribute("data-q", "1"), li._q = opt.q;
     box.appendChild(li);
     while (box.children.length > 200) box.removeChild(box.firstChild);
     if (stick) try { box.scrollTop = box.scrollHeight; } catch (e) {}
-    if (!opt.silent && US.audio && typeof US.audio.cue === "function") {
-      try { US.audio.cue(opt.arp ? "arp" : "packet", { mask: mask() }); } catch (e) {}
-    }
+    if (!opt.silent) emit("logline", { arp: !!opt.arp, kind: opt.kind || null });
     return li;
   }
   function logLine(s, opt) {
@@ -653,7 +658,9 @@
   function editEarlier() {
     if (edited) return; edited = true;
     var box = logBox(); if (!box) return;
+    var n = 0;
     Array.prototype.forEach.call(box.querySelectorAll('li[data-kind="day"] .msg'), function (m) {
+      if (recall("day", null) && recall("day") !== "fine") n++;
       m.textContent = 'guest survey answer recorded ("fine")';
     });
     var e = editLastQuery(), lq = recall("lastQuery", null);
@@ -661,9 +668,15 @@
       Array.prototype.forEach.call(box.querySelectorAll('li[data-kind="ev-lookup"]'), function (li) {
         if (li._q !== lq) return;
         var m = li.querySelector(".msg");
-        if (m) m.textContent = ascii("query[A] " + e + " from " + (US.ip || "") + " -> 0.0.0.0");
+        if (m) { m.textContent = ascii("query[A] " + e + " from " + (US.ip || "") + " -> 0.0.0.0"); n++; }
       });
     }
+    if (n) after(7000, function () { if (inPanel()) logEvent("tidied", { n: n }); });
+  }
+  // at /24 the visitor's own lookups are re-filed: "(local)" becomes "(you)"
+  function refileLookups() {
+    var out = $("lk-out"); if (!out) return;
+    Array.prototype.forEach.call(out.querySelectorAll("li.rec"), function (li) { if (/\(local\)/.test(li.textContent)) li.textContent = li.textContent.replace("(local)", "(you)"); });
   }
   function startLog() {
     if (logStarted) return;
@@ -679,6 +692,7 @@
       if (mm >= 8) { var arps = Math.floor(Math.max(0, end - start) / 8.5); for (var j = 0; j < arps; j++) arpNext(sk, true); }
     });
     logStage = stageKey(m);
+    if (recall("via", null)) logEvent("via", {});
     nextLogT = t + (t < 31 ? 0.4 : rand(3, 6));
     nextArpT = t + rand(7, 10);
   }
@@ -801,14 +815,15 @@
     renderAll();
     scheduleDrops();
     if (m === 16) editEarlier();
+    if (m === 24) refileLookups();
   });
   US.on("tick", function () {
     if (!logStarted) ensureStarted();
     if (logStarted) scheduleDrops();
     var tt = T();
     // autoplays (a mid-run start past their moment does not fire them)
-    if (!lkAutoDone && tt >= 128 && tt < 140 && inPanel()) { lkAutoDone = "queued"; lkAutoplay(); }
-    if (!dgAutoDone && tt >= 200 && tt < 212 && inPanel()) { dgAutoDone = "queued"; dgAutoplay(); }
+    if (!lkAutoDone && tt >= 122 && tt < 136 && inPanel()) { lkAutoDone = "queued"; lkAutoplay(); }
+    if (!dgAutoDone && tt >= 195 && tt < 208 && inPanel()) { dgAutoDone = "queued"; dgAutoplay(); }
     logTick();
     leaseTick();
     var s = Math.floor(T());
@@ -825,7 +840,13 @@
       }
     }
   });
-  US.on("tab", function (d) { var tab = d && d.tab; logEvent("tab", { tabSlug: tab }); if (tab === "dhcp") renderDhcp(); if (tab === "lookup") renderRecent(); });
+  function logToBottom() { var box = logBox(); if (box) try { box.scrollTop = box.scrollHeight; } catch (e) {} }
+  US.on("tab", function (d) {
+    var tab = d && d.tab; logEvent("tab", { tabSlug: tab });
+    if (tab === "dhcp") renderDhcp(); if (tab === "lookup") renderRecent();
+    if (tab === "log") { logToBottom(); after(60, logToBottom); }
+    if (tab === "diag" && T() >= 185) dgSetMode("trace");
+  });
   US.on("lookup", function (d) { if (d && d.q) logEvent("lookup", { q: ascii(cut(d.q, 48)) }); });
   US.on("trace", function (d) { if (d) logEvent("trace", { t: d.target }); });
   US.on("device", function (d) { if (d) logEvent("device", { deviceName: ascii(d.name || "") }); });

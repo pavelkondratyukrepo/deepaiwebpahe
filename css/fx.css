@@ -78,3 +78,11 @@
 @media (prefers-reduced-motion: reduce){
   .fx-endring{ transform: translateX(-50%); }
 }
+
+/* the sentence is earned now; the line after it is quieter and worse */
+.cv-sub{
+  display:block; margin: 26px auto 0; max-width: 24em;
+  font-family: var(--font-serif); font-style: italic; font-weight: 400;
+  font-size: clamp(17px, 1.7vw, 22px); line-height: 1.4; letter-spacing: 0;
+  color: #C9A88C; opacity: 0;
+}

@@ -526,6 +526,8 @@
       case 'sinceSelf': return US.sinceConnect() < 60 ? (US.line('dev.sinceSelfStart') || 'just now') : elapsedShort(US.sinceConnect());
       case 'on|off': case 'soundState': return mem.sound ? 'on' : 'off';
       case 'renewals': return mem.renewals == null ? 0 : mem.renewals;
+      case 'visitsAgain': return (mem.visits | 0) >= 2 ? (mem.visits | 0) - 1 : null;
+      case 'saidFirst': return (mem.said || []).length ? trunc(mem.said[0], 32) : null;
     }
     if (US.live[key] != null) return US.live[key];
     var m = mem[key];
@@ -561,10 +563,15 @@
       case 'deviceTapped': return !!mem.deviceTapped;
       case '!deviceTapped': return !mem.deviceTapped;
       case 'away': return (mem.awayCount | 0) >= 1;
-      case 'mash': return (mem.mashMax | 0) >= 10;
+      case 'mash': return (mem.mashCount | 0) >= 1 && (mem.mashMax | 0) >= 13;
       case 'sound': return !!mem.sound;
       case 'nameAuto': return !!mem.nameAuto;
       case 'lookups2': return (mem.lookups || []).length >= 2;
+      case 'lookups1': return (mem.lookups || []).length >= 1;
+      case 'termsAgreed': return typeof mem.hesTerms === 'number' && !termsAuto();
+      case 'doneClose': return !!mem.doneClose;
+      case 'return': return (mem.visits | 0) >= 2;
+      case 'said': return (mem.said || []).length >= 1;
       case 'passive': return !(mem.lookups || []).length && !(mem.traces || []).length && !(mem.devicesTapped || []).length && !mem.deviceTapped;
       case 'via': return !!mem.via;
     }
@@ -620,6 +627,7 @@
     opt = opt || {};
     if (!SCREENS[state]) { warn('state:' + state, 'unknown state ' + state); return; }
     var prev = US.state;
+    if (prev !== state) closeDialogs();
     US.state = state;
     if (state === 'manifest') manifestBase = opt.base || (prev === 'disconnected' ? 'disconnected' : (manifestBase || 'portal'));
     var list = SCREENS[state].slice();
@@ -748,6 +756,7 @@
     }
     setText(cidrEl, cidrTxt);
     if (unit) setText(unit, unitTxt);
+    if (hud) { hud.style.setProperty('--dial', String(m / 32)); hud.classList.toggle('rolling', !instant); }
     var from = US.hosts(prevM), to = US.hosts(m);
     if (instant || !hostsEl) { hudAnim = null; setText(hostsEl, grp(to)); return; }
     hudAnim = { from: from, to: to, start: clock.P, dur: 3 };
@@ -760,24 +769,38 @@
     var e = 1 - Math.pow(1 - k, 3);
     var lf = Math.log(hudAnim.from), lt = Math.log(Math.max(1, hudAnim.to));
     var v = Math.round(Math.exp(lf + (lt - lf) * e));
-    if (k >= 1) { v = hudAnim.to; hudAnim = null; }
+    if (k >= 1) { v = hudAnim.to; hudAnim = null; var hd = $('hud'); if (hd) hd.classList.remove('rolling'); }
     setText(el, grp(v));
   }
 
   /* ==== toasts */
   var lastToast = { text: '', at: -99 };
-  US.toast = function (text) {
+  US.toast = function (text, opt) {
     if (text == null || text === '') return;
     if (!TOAST_STATES[US.state] || clock.stopped) return;
     if (text === lastToast.text && clock.P - lastToast.at < 4) return;
     lastToast = { text: text, at: clock.P };
+    opt = opt || {};
     var box = $('toasts'); if (!box) { warn('el:toasts', 'missing #toasts'); return; }
     var el = D.createElement('div');
     el.className = 'toast';
-    el.textContent = text;
+    var span = D.createElement('span'); span.textContent = text; el.appendChild(span);
+    var act = opt.action;
+    if (act && act.label && (!act.tab || act.tab !== US.currentTab)) {
+      var b = D.createElement('button'); b.type = 'button'; b.className = 'toast-act'; b.textContent = act.label;
+      b.addEventListener('click', function () {
+        if (act.tab) { US.tab(act.tab, { auto: false, reveal: true }); }
+        if (typeof act.fn === 'function') { try { act.fn(); } catch (e) { /* */ } }
+        el.classList.add('out');
+        US.after(US.reduced ? 0 : 300, function () { if (el.parentNode) el.parentNode.removeChild(el); });
+      });
+      el.appendChild(b);
+      el.classList.add('has-act');
+    }
     box.appendChild(el);
     while (box.children.length > 2) box.removeChild(box.firstChild);
-    US.after(5500, function () {
+    US.emit('toast', { text: text });
+    US.after(act ? 8000 : 5500, function () {
       el.classList.add('out');
       US.after(US.reduced ? 0 : 400, function () { if (el.parentNode) el.parentNode.removeChild(el); });
     });
@@ -840,8 +863,15 @@
     pendingTab = null;
     doTab(slug, opt);
   };
+  // a modal left open inside a pane that is about to hide would make the whole page inert
+  function closeDialogs(scope) {
+    var ds = (scope || D).querySelectorAll('dialog[open]');
+    for (var i = 0; i < ds.length; i++) { try { if (ds[i].close) ds[i].close(); else ds[i].removeAttribute('open'); } catch (e) { ds[i].removeAttribute('open'); } }
+  }
+  US.closeDialogs = closeDialogs;
   function doTab(slug, opt) {
     var prev = US.currentTab;
+    if (prev !== slug) closeDialogs($('panes'));
     US.currentTab = slug;
     html.setAttribute('data-tab', slug);
     var btns = D.querySelectorAll('#tabs [data-tab]');
@@ -849,15 +879,40 @@
       var on = btns[i].getAttribute('data-tab') === slug;
       btns[i].setAttribute('aria-selected', on ? 'true' : 'false');
       btns[i].setAttribute('tabindex', on ? '0' : '-1');
-      if (on && opt.auto && btns[i].scrollIntoView) { try { btns[i].scrollIntoView({ block: 'nearest', inline: 'nearest' }); } catch (e) { /* */ } }
+      if (on) { btns[i].removeAttribute('data-new'); if (opt.auto || opt.reveal) centreTab(btns[i]); }
     }
     var panes = D.querySelectorAll('#panes [data-pane]');
     for (var j = 0; j < panes.length; j++) { var p = panes[j].getAttribute('data-pane') === slug; if (panes[j].hidden === p) panes[j].hidden = !p; }
     setText($('panel-url'), US.line('panel.url'));
     if ((mem.tabsVisited || []).indexOf(slug) < 0) US.push('tabsVisited', slug);
     updateTitle();
+    if ((opt.auto || opt.reveal) && prev !== slug && (US.state === 'panel')) revealPane(slug, !!opt.auto);
     US.emit('tab', { tab: slug, auto: !!opt.auto, prev: prev });
-    if (opt.auto && !opt.silent && prev !== slug) US.toast(US.line('toast.tabAuto'));
+    // the setup assistant (guide.js) announces automatic switches; the toast is only a fallback
+    if (opt.auto && !opt.silent && prev !== slug && !$('guide')) US.toast(US.line('toast.tabAuto'));
+  }
+  function centreTab(btn) {
+    var bar = $('tabs'); if (!bar || !btn) return;
+    try {
+      if (bar.scrollWidth > bar.clientWidth + 2) {
+        var left = btn.offsetLeft - (bar.clientWidth - btn.offsetWidth) / 2;
+        if (bar.scrollTo) bar.scrollTo({ left: Math.max(0, left), behavior: US.reduced ? 'auto' : 'smooth' }); else bar.scrollLeft = Math.max(0, left);
+      }
+    } catch (e) { /* */ }
+  }
+  function revealPane(slug, auto) {
+    // never yank the page while the visitor is typing somewhere
+    var ae = D.activeElement;
+    if (auto && ae && (ae.tagName === 'INPUT' || ae.tagName === 'TEXTAREA') && typingNow()) return;
+    try {
+      var panel = $('panel'), y = W.scrollY || W.pageYOffset || 0;
+      if (y > 4 && panel) W.scrollTo({ top: 0, behavior: US.reduced ? 'auto' : 'smooth' });
+    } catch (e) { try { W.scrollTo(0, 0); } catch (e2) { /* */ } }
+    var pane = D.querySelector('#panes [data-pane="' + slug + '"]');
+    if (pane) {
+      pane.classList.remove('arrive'); void pane.offsetWidth; pane.classList.add('arrive');
+      US.after(1800, function () { pane.classList.remove('arrive'); });
+    }
   }
   function tabDeferStep() {
     if (!pendingTab) return;
@@ -875,12 +930,23 @@
       if (!on && US.audio && typeof US.audio.disable === 'function') US.audio.disable();
     } catch (e) { warn('audio', 'audio toggle failed: ' + e); }
     html.setAttribute('data-sound', on ? 'on' : 'off');
-    var b = $('btn-sound');
-    if (b) { b.setAttribute('aria-pressed', on ? 'true' : 'false'); setText(b, US.line(on ? 'panel.soundOn' : 'panel.soundOff')); }
+    syncSoundButtons(on);
     var changed = !!mem.sound !== on;
     US.remember('sound', on);
     if (changed || on) US.emit('sound', { on: on });
   };
+
+  function syncSoundButtons(on) {
+    var b = $('btn-sound');
+    if (b) { b.setAttribute('aria-pressed', on ? 'true' : 'false'); setText(b, US.line(on ? 'panel.soundOn' : 'panel.soundOff')); }
+    var ts = D.querySelectorAll('.sound-toggle');
+    for (var i = 0; i < ts.length; i++) {
+      ts[i].setAttribute('aria-pressed', on ? 'true' : 'false');
+      var term = ts[i].classList.contains('term-btn');
+      setText(ts[i], term ? (on ? '[sound: on]' : '[sound: off]') : US.line(on ? 'panel.soundOn' : 'panel.soundOff'));
+    }
+  }
+  US.syncSound = function () { syncSoundButtons(!!mem.sound); };
 
   /* ==== input */
   var lastInputP = 0, idleStage = 0, downs = [], lastMashSay = -1e9, lastNoticeP = -1e9;
@@ -1155,7 +1221,7 @@
     html.style.setProperty('--decay', '0');
     US.applyL();
     hudSet(0, 0, true);
-    var sb = $('btn-sound'); if (sb) setText(sb, US.line('panel.soundOff'));
+    syncSoundButtons(false);
 
     D.addEventListener('input', function (e) {
       var t = e.target;
@@ -1168,7 +1234,7 @@
       if (dc) { e.preventDefault(); US.disconnect(); return; }
       var tb = t.closest('#tabs [data-tab]');
       if (tb) { US.tab(tb.getAttribute('data-tab'), { auto: false }); return; }
-      if (t.closest('#btn-sound')) { US.setSound(!mem.sound); }
+      if (t.closest('#btn-sound') || t.closest('.sound-toggle')) { US.setSound(!mem.sound); }
     });
     var tabsEl = $('tabs');
     if (tabsEl) tabsEl.addEventListener('keydown', function (e) {

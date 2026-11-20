@@ -25,6 +25,9 @@
   function on(id, evt, fn) { var e = D.getElementById(id); if (e) e.addEventListener(evt, fn); else warn('el:' + id, 'missing #' + id); }
   function mk(tag, cls, text) { var e = D.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; }
   var S = US.scenes = US.scenes || {};
+  // the one control that matters right now gets a slow pulse (CSS: ≤ 0.5 Hz, static under reduced motion)
+  function pulse(id, onOff) { var e = D.getElementById(id); if (!e) return; if (onOff) e.setAttribute('data-pulse', ''); else e.removeAttribute('data-pulse'); }
+  S.pulse = pulse;
   S.blanked = false;
 
   /* ==== portal */
@@ -81,13 +84,15 @@
       var tb = D.getElementById('portal-terms'); if (tb) tb.checked = true;
     }
     var notes = [];
-    if (US.recall('via')) notes.push(L('portal.via'));
+    if (US.recall('via')) { notes.push(L('portal.via')); html.setAttribute('data-via', ''); }
     if (US.recall('from')) notes.push(L('portal.from'));
     portal.noteBase = notes.filter(Boolean).join(' ');
     portalNote();
-    portal.timers.push(after(20000, function () { if (US.state === 'portal' && !portal.connecting) { portal.noteHint = L('portal.idle20') || ''; portalNote(); } }));
-    portal.timers.push(after(40000, function () { if (US.state === 'portal' && !portal.connecting) { portal.noteHint = L('portal.idle40') || ''; portalNote(); } }));
-    portal.timers.push(after(60000, function () { if (US.state === 'portal' && !portal.connecting) tryConnect(true); }));
+    // arrived from Heartwood: the second sentence arrives with the fourth tagline, as if remembered
+    if (US.recall('via')) portal.timers.push(after(15000, function () { if (US.state === 'portal' && !portal.connecting) { var v2 = L('portal.via2'); if (v2) { portal.noteBase = [portal.noteBase, v2].join(' '); portalNote(); } } }));
+    portal.timers.push(after(18000, function () { if (US.state === 'portal' && !portal.connecting) { portal.noteHint = L('portal.idle20') || ''; portalNote(); } }));
+    portal.timers.push(after(32000, function () { if (US.state === 'portal' && !portal.connecting) { portal.noteHint = L('portal.idle40') || ''; portalNote(); } }));
+    portal.timers.push(after(45000, function () { if (US.state === 'portal' && !portal.connecting) tryConnect(true); }));
   }
   function portalErr(key) { txt('portal-error', key ? L(key) : ''); }
   function tryConnect(auto) {
@@ -108,11 +113,12 @@
       if (nameAuto) { portal.noteHint = L('portal.idle60') || ''; portalNote(); }
       if (termsEl && !termsEl.checked) {
         termsEl.checked = true;
-        if (US.recall('hesTerms') == null || US.isReturn()) { US.remember('hesTerms', 60); US.remember('hesTermsAuto', true); }
+        if (US.recall('hesTerms') == null || US.isReturn()) { US.remember('hesTerms', 45); US.remember('hesTermsAuto', true); }
       }
     }
-    var sound = !auto && !!(soundEl && soundEl.checked);
-    if (sound) US.setSound(true);          // inside the user's gesture
+    // sound: on if the visitor switched it on (the switch itself already started it, inside that tap)
+    var sound = !!(soundEl && soundEl.checked) && (!auto || !!(US.audio && US.audio.isOn && US.audio.isOn()));
+    if (sound && !auto) US.setSound(true);          // inside the user's gesture
     var btn = D.getElementById('portal-connect');
     if (btn) { btn.setAttribute('data-l-lock', ''); txt(btn, L('portal.connecting')); btn.disabled = true; }
     if (nameEl) nameEl.readOnly = true;
@@ -151,18 +157,19 @@
       var r = arr('hs.linesReturn');
       if (r.length) lines.splice.apply(lines, [1, 2].concat(r));
     }
+    if (US.recall('via') && G('hs.lineVia')) lines.splice(1, 0, G('hs.lineVia'));
     var ol = D.getElementById('hs-lines'), sp = D.getElementById('hs-spinner');
     if (ol) ol.textContent = '';
     if (sp) { sp.classList.remove('done'); sp.removeAttribute('data-done'); }
-    var k = 0;
+    var k = 0, step = Math.min(700, Math.floor(3600 / Math.max(1, lines.length)));   // all lines land before T=34
     lines.forEach(function (l, i) {
-      after(150 + i * 700, function () {
+      after(150 + i * step, function () {
         var t = F(l); if (t == null || !ol) return;
         ol.appendChild(mk('li', null, t));
         k++;
       });
     });
-    after(150 + lines.length * 700, function () { if (sp) { sp.classList.add('done'); sp.setAttribute('data-done', ''); } });
+    after(150 + lines.length * step, function () { if (sp) { sp.classList.add('done'); sp.setAttribute('data-done', ''); } });
   }
 
   /* ==== status */
@@ -235,7 +242,33 @@
     if (titleKey) txt('face-title', L(titleKey));
     if (bodyKey !== undefined) txt('face-body', bodyKey ? L(bodyKey) : '');
   }
-  function faceDark(on) { hide('face-dark', !on); if (!on) txt('face-msg', ''); }
+  // the dark screen: a faint ring fills and a faint count runs, and audio.js keeps watch out loud
+  var watchTimer = null;
+  function faceDark(on, opt) {
+    opt = opt || {};
+    var was = !D.getElementById('face-dark') || !D.getElementById('face-dark').hidden;
+    hide('face-dark', !on);
+    if (!on) txt('face-msg', '');
+    if (watchTimer) { US.cancel(watchTimer); watchTimer = null; }
+    var ring = D.querySelector('#face-ring .fr-ring'), w = D.getElementById('face-watch');
+    if (on) {
+      var dur = opt.dur || 0, start = now();
+      if (ring) { ring.style.strokeDashoffset = '100'; D.getElementById('face-ring').style.visibility = dur ? 'visible' : 'hidden'; }
+      var paint = function () {
+        var el = now() - start;
+        if (ring && dur) ring.style.strokeDashoffset = String(Math.max(0, Math.round((1 - el / dur) * 1000) / 10));
+        if (!w) return;
+        var n = Math.min(opt.count || 99, Math.floor(el) + 1);
+        w.textContent = opt.count ? (L('face.watchCount', { n: n }) || '') : (L(opt.down ? 'face.watchDown' : 'face.watch') || '');
+      };
+      paint();
+      watchTimer = US.every(500, paint);
+      US.emit('face', { phase: 'dark', count: !!opt.count });
+    } else if (!was) {
+      if (w) w.textContent = '';
+      US.emit('face', { phase: 'light' });
+    }
+  }
   function faceT(ms, fn) { var id = after(ms, function () { if (face && !face.finished) fn(); }); if (face) face.timers.push(id); return id; }
   function faceClear() { if (!face) return; face.timers.forEach(function (id) { US.cancel(id); }); face.timers = []; }
   function faceOutcome(o) { if (face && !face.outcome) { face.outcome = o; US.remember('faceOutcome', o); } }
@@ -244,16 +277,19 @@
     var path = 'desk';
     try { path = (o && typeof o.path === 'function') ? o.path() : (o && o.available && o.available() ? (o.needsPermission && o.needsPermission() ? 'ios' : 'android') : 'desk'); } catch (e) { path = 'desk'; }
     face = { path: path, step: 'offer', timers: [], outcome: null, finished: false, downAt: null, resets: 0, grace: 0 };
+    US.remember('facePath', path);
     html.setAttribute('data-relief', '');
     faceDark(false);
     if (path === 'desk') { faceText('face.deskTitle', 'face.deskBody'); faceBtns('face.deskOk', 'face.deskNo'); }
     else { faceText('face.title', 'face.body'); faceBtns('face.yes', 'face.no'); }
     var card = D.getElementById('face-card'); if (card) card.hidden = false;
+    pulse('face-yes', true);
     US.emit('face', { phase: 'offer', path: path });
-    faceT(15000, function () { if (face.step === 'offer' || face.step === 'perm') countPath('face.noFlip', 'eyes'); });
+    faceT(12000, function () { if (face.step === 'offer' || face.step === 'perm') countPath('face.noFlip', 'eyes'); });
   }
   function faceYes() {
     if (!face || face.finished) return;
+    pulse('face-yes', false);
     if (face.path === 'desk' && face.step === 'offer') { deskCount(); return; }
     if (face.path === 'ios' && face.step === 'offer') {
       face.step = 'perm';
@@ -278,6 +314,7 @@
   }
   function faceNo() {
     if (!face || face.finished) return;
+    pulse('face-yes', false);
     if (face.step === 'offer' || face.step === 'perm') countPath('face.noBody', 'refused');
   }
   function startSensing() {
@@ -297,7 +334,7 @@
         if (isDown && face.step === 'waiting') {
           US.cancel(face.flipTimer);
           face.step = 'down'; face.downAt = now();
-          faceDark(true);
+          faceDark(true, { dur: 12, down: true });
           US.emit('face', { phase: 'down' });
           face.longTimer = faceT(12000, function () {
             if (face.step !== 'down') return;
@@ -334,8 +371,8 @@
     faceText('base', bodyKey);
     faceDark(false);
     US.emit('face', { phase: outcome === 'refused' ? 'refused' : 'eyes' });
-    faceT(3000, function () { faceDark(true); });
-    faceT(20000, function () {
+    faceT(3000, function () { faceDark(true, { dur: 20, count: 20 }); });
+    faceT(23000, function () {
       faceDark(false);
       faceText(null, 'face.eyesDone');
       faceT(4000, finishFace);
@@ -345,7 +382,7 @@
     faceClear();
     face.step = 'desk';
     faceBtns(null, null);
-    faceDark(true);
+    faceDark(true, { dur: 20, count: 20 });
     face.grace = now() + 0.8;
     face.deskTimer = faceT(20000, deskDone);
   }
@@ -363,6 +400,7 @@
     face.resets++;
     if (face.resets === 1) {
       txt('face-msg', L('face.deskReset'));
+      faceDark(true, { dur: 20, count: 20 });
       US.cancel(face.deskTimer);
       face.grace = now() + 0.8;
       face.deskTimer = faceT(20000, deskDone);
@@ -424,7 +462,7 @@
   /* ==== terminal */
   var term = null;
   function termReset() {
-    term = { q: [], src: [], cur: null, lastDone: now(), inputOn: false, pay: 0, payIdx: 0, nextPayT: 322, hold: null, flood: null, calm: null, said: 0 };
+    term = { q: [], src: [], cur: null, lastDone: now(), inputOn: false, pay: 0, payIdx: 0, nextPayT: 320, hold: null, flood: null, calm: null, said: 0 };
     txt('term-out', '');
     txt('term-flood-rows', ''); txt('term-flood-head', '');
     txt('term-calm-num', ''); txt('term-calm-notes', '');
@@ -472,14 +510,15 @@
       if (out) out.appendChild(next.el);
       next.start = Math.min(t, Math.max(prevEnd, next.at == null ? t : next.at)); next.doneAt = null;
       term.cur = next;
+      US.emit('termline', { machine: next.m });
       if (!next.m) US.a11y(next.text);
     }
     var idle = !term.cur && !term.q.length && !term.src.length;
     // payoff interjections, T 320–360, max 6: whenever the terminal has been idle 4 s,
     // and otherwise one every 16 s of story time, slotted in after the current line
     var T = US.T();
-    if (T >= 320 && T < 360 && term.pay < 6 && ((idle && t - term.lastDone >= 4) || T >= term.nextPayT)) {
-      if (nextPayoff()) term.nextPayT = T + 16; else term.pay = 6;
+    if (T >= 318 && T < 364 && term.pay < 6 && ((idle && t - term.lastDone >= 3) || T >= term.nextPayT)) {
+      if (nextPayoff()) term.nextPayT = T + 9; else term.pay = 6;
     }
     if (term.hold === 'drain' && idle) { term.hold = null; US.release('speech'); }
     floodStep(); calmStep();
@@ -523,7 +562,11 @@
     if (r) term.src.push({ at: now(), text: r, m: false, pause: 900 });   // after the monologue, whenever that is
     term.inputOn = true;
     var inp = D.getElementById('term-input');
-    if (inp) { inp.disabled = false; try { inp.focus({ preventScroll: true }); } catch (e) { /* */ } }
+    if (inp) {
+      inp.disabled = false; inp.placeholder = L('term.placeholder') || '';
+      if (!term.typed) pulse('term-form', true);
+      try { inp.focus({ preventScroll: true }); } catch (e) { /* */ }
+    }
   }
   function termSubmit() {
     var inp = D.getElementById('term-input');
@@ -531,6 +574,7 @@
     var raw = String(inp.value || '').trim();
     inp.value = '';
     if (!raw) return;
+    term.typed = true; pulse('term-form', false); inp.placeholder = '';
     var limited = US.sense && US.sense.rateLimitedUntil && (performance.now() < US.sense.rateLimitedUntil);
     tprint((L('term.prompt') || '$') + ' ' + raw, { machine: true, cls: 'echo', front: true, pause: 200 });
     US.push('said', raw);
@@ -554,7 +598,12 @@
   function annotations() {
     var out = [];
     // only annotate with things this visitor actually did (rule 3: specificity)
-    var gate = { 'looked away': 'away', 'came back': 'away', 'pressed too fast': 'mash', 'turned the phone face down': 'face:down', 'said no': 'face:refused' };
+    var gate = {
+      'looked away': 'away', 'came back': 'away', 'pressed too fast': 'mash', 'turned the phone face down': 'face:down', 'said no': 'face:refused',
+      'let it happen': 'passive', 'waited {hesTerms}s before agreeing': 'termsAgreed', 'pressed Close': 'doneClose', 'let me count to twenty': 'face:eyes',
+      'kept their hands off the keys': 'face:hands', 'came from the big room': 'via', 'came back {visitsAgain} times': 'return', 'turned the sound on': 'sound',
+      'never told me their name': 'nameAuto', 'opened the terms': 'termsOpened', 'said \"{saidFirst}\" to the dark': 'said'
+    };
     arr('copy.annotations').forEach(function (a) { var s = F(a); if (s && (!gate[a] || US.when(gate[a]))) out.push(s); });
     return out.length ? out : ['is reading this'];
   }
@@ -570,6 +619,7 @@
     if (!term) termReset();
     tprint(L('copy.head'), { machine: true, src: true });
     term.flood = { start: now(), shown: 0, anns: annotations(), done: false };
+    US.emit('flood', {});
     floodHead(0);
   }
   function floodStep() {
@@ -648,11 +698,13 @@
     if (inp) { inp.disabled = false; inp.readOnly = false; inp.value = ''; inp.placeholder = L('last.placeholder') || inp.placeholder; }
     var go = D.getElementById('last-go'); if (go) go.disabled = false;
     after(400, function () { if (inp && US.state === 'last' && !last.answered) { try { inp.focus({ preventScroll: true }); } catch (e) { /* */ } } });
-    last.pass = after(25000, lastPass);
+    pulse('last-form', true);
+    last.pass = after(20000, lastPass);
   }
   function lastLine(text, cls) { var o = D.getElementById('last-out'); if (o && text) o.appendChild(mk('p', cls, text)); }
   function lastPass() {
     if (!last || last.answered || US.state !== 'last') return;
+    pulse('last-form', false);
     lastLine(L('last.pass'), 'say');
     var nm = name(), inp = D.getElementById('last-input'), i = 0;
     if (inp) inp.readOnly = true;
@@ -670,6 +722,7 @@
     q = String(q || '').trim();
     if (!q) return;
     last.answered = true;
+    pulse('last-form', false);
     if (last.pass) US.cancel(last.pass);
     var inp = D.getElementById('last-input'); if (inp) inp.disabled = true;
     var go = D.getElementById('last-go'); if (go) go.disabled = true;
@@ -722,7 +775,7 @@
   }
 
   /* ==== manifest */
-  var MAN_ORDER = ['name', 'day', 'deleted', 'terms', 'device', 'lookups', 'traces', 'said', 'away', 'idle', 'mash', 'hes', 'face', 'env', 'sound', 'ip', 'visits', 'lastVisit'];
+  var MAN_ORDER = ['via', 'name', 'day', 'deleted', 'terms', 'device', 'lookups', 'traces', 'said', 'away', 'idle', 'mash', 'hes', 'face', 'env', 'sound', 'ip', 'visits', 'lastVisit'];
   function manItem(key) {
     var items = G('man.items') || {}, v = items[key];
     var rec = function (k) { return US.recall(k); };
@@ -731,7 +784,7 @@
     var t = (typeof v === 'object' && v.t != null) ? v.t : v, alt = (typeof v === 'object') ? v.alt : null;
     var C = G('man') || {};
     switch (key) {
-      case 'name': return rec('nameAuto') ? F(alt) : F(t);
+      case 'name': return rec('nameAuto') ? F(alt, { autoSecs: 45 }) : F(t);
       case 'day': return rec('day') ? F(t) : (rec('daySkipped') ? F(alt) : null);
       case 'deleted': return rec('deleted') ? F(t) : null;
       case 'terms':
@@ -749,12 +802,14 @@
       case 'face':
         var o = rec('faceOutcome'); if (!o) return null;
         var fs = (C.faceSentence || {})[o], fh = C.faceHow || {};
+        if (rec('facePath') === 'desk' && (G('man.items') || {}).faceDesk) { t = G('man.items').faceDesk; if (o === 'eyes') fs = (C.faceSentenceDesk || {}).eyes || fs; }
         return F(t, { faceSentence: fs, faceHow: rec('faceSensorUsed') ? fh.sensor : fh.none });
       case 'env': return F(t);
       case 'sound': return F(t, { soundState: ((C.soundState || {})[rec('sound') ? 'on' : 'off']) || (rec('sound') ? 'on' : 'off') });
       case 'ip': return US.ip ? F(t) : null;
       case 'visits': return F(t);
       case 'lastVisit': return US.isReturn() ? F(t) : null;
+      case 'via': return rec('via') ? F(t) : null;
     }
     return F(t);
   }
@@ -853,6 +908,20 @@
     on('portal-stay', 'click', codaStay);
     on('portal-name', 'input', function () { if (D.getElementById('portal-error') && D.getElementById('portal-error').textContent) portalErr(null); });
     on('portal-terms', 'change', function () { var e = D.getElementById('portal-error'); if (e && e.textContent && this.checked) portalErr(null); });
+    on('portal-sound', 'change', function () {
+      if (US.state !== 'portal') return;
+      var row = D.getElementById('portal-sound-row');
+      if (this.checked) {
+        try { if (US.audio && US.audio.enable) US.audio.enable({ test: true }); } catch (e) { /* */ }
+        US.setSound(true);
+        txt('portal-sound-hint', L('portal.soundHintOn'));
+      } else {
+        US.setSound(false);
+        txt('portal-sound-hint', L('portal.soundHintOff'));
+      }
+      if (row) row.setAttribute('data-on', this.checked ? 'true' : 'false');
+      var h = D.getElementById('portal-sound-hint'); if (h) h.setAttribute('data-l-lock', '');
+    });
     on('wiz-form', 'submit', function (e) { e.preventDefault(); wizSubmit(); });
     on('wiz-skip', 'click', function (e) { e.preventDefault(); wizSkip(); });
     on('face-yes', 'click', faceYes);
@@ -874,7 +943,7 @@
     var sched = function (T, fn) { US.schedule(T, fn); };
     sched(35, function (i) { if (i.late) return; US.toast(US.isReturn() ? L('ret.toast') : L('toast.welcome')); });
     sched(40, function (i) { if (!i.late || US.T() < 64) wizShow(i.late); });
-    sched(46, function (i) { if (!i.late) US.toast(arr('toast.tips')[0] != null ? F(arr('toast.tips')[0]) : null); });
+    sched(46, function (i) { if (!i.late) US.toast(arr('toast.tips')[0] != null ? F(arr('toast.tips')[0]) : null, { action: { label: L('guide.open.s0') || 'Open', tab: 'devices' } }); });
     sched(50, function (i) { if (!i.late && US.isReturn() && US.prev('lastEnd') === 'disconnect') US.toast(L('ret.lastDisconnect')); });
     sched(56, function (i) { check(i.late); });
     sched(64, function (i) {
@@ -883,7 +952,7 @@
       if (i.late) { wiz.done = true; hide('wizard', true); return; }
       wizClose('wiz.timeout', 2000);
     });
-    sched(66, function (i) { if (!i.late) US.toast(F(arr('toast.tips')[1] || '')); });
+    sched(66, function (i) { if (!i.late) US.toast(F(arr('toast.tips')[1] || ''), { action: { label: L('guide.open.s0') || 'Open', tab: 'lookup' } }); });
     sched(76, function (i) { if (!i.late) US.toast(F(arr('toast.tips')[2] || '')); });
     sched(88, function (i) { if (!i.late && !US.recall('deviceTapped') && US.state === 'panel') US.toast(L('dev.tapHint')); });
     // B10

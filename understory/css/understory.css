@@ -1820,3 +1820,267 @@ html[data-reduced] *, html[data-reduced] *::before, html[data-reduced] *::after 
     scroll-behavior: auto !important;
   }
 }
+
+/* =====================================================================
+   19. Guidance layer (guide.js) — the setup assistant bar, tab badges,
+   the slow pulse on the one control that matters, suggestions, the HUD
+   dial, the sound invitation, the watch on the dark screen.
+   Nothing here changes luminance faster than once every 2.4 s.
+   ===================================================================== */
+:root { --guide-h: 0px; }
+html[data-guide] { --guide-h: 76px; }
+
+#guide {
+  position: fixed; z-index: 60;
+  left: 0; right: 0; bottom: 0;
+  padding: 8px calc(10px + var(--safe-r)) calc(8px + var(--safe-b)) calc(10px + var(--safe-l));
+  pointer-events: none;
+}
+html:not([data-state="panel"]) #guide { display: none; }
+.guide-in {
+  pointer-events: auto;
+  max-width: 640px; margin: 0 auto;
+  min-height: 60px;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
+  align-items: center; gap: 10px;
+  padding: 8px 10px 8px 12px;
+  border-radius: 14px;
+  background: var(--card);
+  border: 1px solid var(--card-line);
+  box-shadow: 0 -2px 10px rgba(16, 24, 40, .05), 0 10px 30px rgba(16, 24, 40, .14);
+  transition: background-color var(--t), border-color var(--t), box-shadow var(--t), border-radius var(--t);
+}
+.guide-ico {
+  width: 28px; height: 28px; border-radius: 8px; flex: none;
+  background: var(--accent) center / 16px no-repeat;
+  background-image: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'><path d='M12 3l2.2 5.3L20 9l-4.4 3.8L17 19l-5-3-5 3 1.4-6.2L4 9l5.8-.7z'/></svg>");
+  transition: background-color var(--t), opacity var(--t);
+}
+.guide-txt { display: flex; flex-direction: column; min-width: 0; line-height: 1.35; }
+#guide-eyebrow { font-size: 11.5px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: var(--accent-ink); }
+#guide-eyebrow:empty { display: none; }
+#guide-text { font-size: 14.5px; color: var(--fg); overflow-wrap: anywhere; }
+#guide.turn #guide-text { animation: fadein .5s ease both; }
+#guide-act { min-height: 44px; padding: 0 14px; font-size: 14px; white-space: nowrap; }
+#guide-next { display: flex; flex-direction: column; align-items: center; gap: 1px; width: 52px; flex: none; color: var(--muted); }
+#guide-next svg { width: 26px; height: 26px; transform: rotate(-90deg); }
+#guide-next circle { fill: none; stroke-width: 3.2; }
+.gn-track { stroke: var(--line); }
+.gn-ring { stroke: var(--accent); stroke-dasharray: 100 100; stroke-dashoffset: 100; transition: stroke-dashoffset .3s linear, stroke var(--t); stroke-linecap: round; }
+#guide-secs { font-size: 10.5px; line-height: 1.15; text-align: center; font-variant-numeric: tabular-nums; }
+html.ge16 .guide-in { border-radius: 6px; }
+html.ge16 #guide-text { font-family: var(--mono); font-size: 13.5px; }
+html.ge16 #guide-eyebrow { font-family: var(--mono); font-weight: 500; text-transform: none; letter-spacing: 0; }
+html.ge16 .guide-ico { background-image: none; width: 8px; height: 28px; border-radius: 2px; }
+html.ge24 .guide-in { background: var(--bg); box-shadow: none; border-color: var(--line); }
+html.ge24 .guide-ico { width: 2px; opacity: .6; }
+html.ge24 #guide-text { color: var(--fg); }
+html.ge24 #guide-act { background: transparent; color: var(--accent-ink); border-color: var(--accent); }
+@media (max-width: 420px) {
+  .guide-in { gap: 8px; padding-left: 10px; }
+  #guide-text { font-size: 14px; }
+  #guide-next { width: 44px; }
+}
+
+/* the panel leaves room for the bar; toasts sit above it */
+html[data-guide] #panel { padding-bottom: var(--guide-h); }
+html[data-guide] #toasts { bottom: calc(var(--guide-h) + 10px + var(--safe-b)); }
+
+/* toasts with an action */
+#toasts .toast { display: flex; align-items: center; gap: 12px; }
+#toasts .toast > span { flex: 1 1 auto; min-width: 0; }
+.toast-act {
+  flex: none; min-height: 36px; padding: 0 12px;
+  border: 1px solid rgba(255, 255, 255, .35); border-radius: 8px;
+  background: transparent; color: inherit; font-size: 14px; font-weight: 650;
+}
+.toast-act:hover { background: rgba(255, 255, 255, .08); }
+#toasts .toast.out { opacity: 0; transition: opacity .3s; }
+
+/* badge dot: something new on a tab you're not looking at */
+#tabs [role="tab"] { position: relative; }
+#tabs [role="tab"][data-new]::after {
+  content: "";
+  position: absolute; top: 9px; right: 3px;
+  width: 8px; height: 8px; border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 0 2px var(--card);
+  animation: fadein .4s ease both;
+}
+html.ge16 #tabs [role="tab"][data-new]::after { border-radius: 1px; }
+@media (min-width: 900px) { #tabs [role="tab"][data-new]::after { top: 50%; right: 12px; margin-top: -4px; } }
+
+/* phone: every tab visible at once (two rows, no sideways scrolling) */
+@media (max-width: 899px) {
+  #tabs {
+    position: relative; top: auto;
+    margin-top: calc(var(--hud-h) + 3px);
+    height: auto;
+    flex-wrap: wrap; overflow: visible;
+    gap: 2px 2px;
+    padding: 4px calc(8px + var(--safe-r)) 4px calc(8px + var(--safe-l));
+    scroll-snap-type: none;
+  }
+  #tabs [role="tab"] { margin-top: 0; padding: 0 11px; border-radius: 8px 8px 0 0; }
+}
+@media (max-width: 599px) {
+  #tabs [role="tab"]::before { display: none; }
+  #tabs [role="tab"] { font-size: 14px; padding: 0 10px; min-height: 42px; }
+  html.ge16 #tabs [role="tab"] { font-size: 13px; padding: 0 9px; }
+  #tabs [role="tab"][aria-selected="true"] { background: var(--accent-soft); }
+  html.ge24 #tabs [role="tab"][aria-selected="true"] { background: transparent; }
+}
+/* /24: the other tabs fade; the bar says why */
+html.ge24 #tabs [role="tab"][aria-selected="false"] { opacity: .5; }
+html.ge24 #tabs [role="tab"][aria-selected="false"][data-new] { opacity: .8; }
+
+/* the pane you were just brought to */
+.pane.arrive .pane-head h2 { animation: arrive 1.6s ease-out both; }
+@keyframes arrive { from { opacity: .2; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+
+/* the one thing that matters right now: a slow ring (0.42 Hz), static under reduced motion */
+[data-pulse] { position: relative; animation: pulse 2.4s ease-in-out infinite; }
+@keyframes pulse {
+  0%, 100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent) 0%, transparent); }
+  50% { box-shadow: 0 0 0 6px color-mix(in srgb, var(--accent) 30%, transparent); }
+}
+#dev-list > li[data-pulse] { background: var(--accent-soft); }
+#dev-list > li[data-pulse] .dev-tag:empty::after { content: "Tap"; padding: 3px 9px; border-radius: 999px; background: var(--accent); color: var(--accent-fg); font-size: 12px; }
+html[data-reduced] [data-pulse] { box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 45%, transparent) !important; }
+@media (prefers-reduced-motion: reduce) { [data-pulse] { box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 45%, transparent) !important; } }
+#term-form[data-pulse], #last-form[data-pulse] { --accent: #8fb07f; border-radius: 6px; }
+
+/* suggestions */
+.try { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; margin-top: 12px; }
+.try-label { font-size: 13.5px; color: var(--muted); }
+.try-label:empty { display: none; }
+.chips { display: contents; }
+.chip {
+  min-height: 36px; padding: 0 12px;
+  border: 1px solid var(--field-line); border-radius: 999px;
+  background: var(--card); color: var(--accent-ink);
+  font-size: 14px; font-weight: 600;
+  transition: background-color .15s, border-color var(--t), color var(--t);
+}
+.chip:hover { background: var(--accent-soft); }
+html.ge16 .chip { font-family: var(--mono); font-weight: 500; border-radius: 4px; font-size: 13px; }
+html.ge24 .chip { background: transparent; }
+.try:has(.chips:empty) { display: none; }
+
+/* diagnostics output wraps on phones instead of hiding the timings */
+@media (max-width: 599px) { #dg-out { white-space: pre-wrap; overflow-wrap: anywhere; } }
+
+/* system log: new lines arrive softly highlighted */
+#log-out li.fresh { animation: logfresh 3s ease-out both; }
+@keyframes logfresh { from { background: color-mix(in srgb, var(--accent) 16%, transparent); } to { background: transparent; } }
+#log-out li[data-kind^="ev-"] .msg { color: var(--fg); font-weight: 600; }
+html.ge16 #log-out li[data-kind^="ev-"] .msg { font-weight: 500; }
+
+/* HUD: the mask as a dial that fills toward /32 */
+.hud-dial {
+  position: relative; height: 3px;
+  background: var(--line);
+  pointer-events: none;
+}
+.hud-fill {
+  position: absolute; left: 0; top: 0; bottom: 0;
+  width: calc(var(--dial, 0) * 100%);
+  background: var(--accent);
+  transition: width 3s cubic-bezier(.2, .7, .2, 1), background-color var(--t);
+}
+.hud-dial i { position: absolute; top: 0; width: 2px; height: 3px; background: var(--card); }
+#hud.rolling #hud-hosts { color: var(--accent-ink); }
+html[data-state="term"] .hud-dial, html[data-state="last"] .hud-dial { max-width: 240px; margin: 0 auto; background: #263026; }
+html[data-state="term"] .hud-fill, html[data-state="last"] .hud-fill { background: #8fb07f; }
+@media (min-width: 900px) {
+  .hud-dial { width: calc(100% - 28px); margin: -3px auto 0; border-radius: 3px; }
+}
+
+/* portal: the sound invitation */
+#portal-sound-row { position: relative; gap: 12px; padding: 12px; border-color: #c9d8f4; background: #f3f7fe; cursor: pointer; }
+#portal-sound-row[data-on="true"] { border-color: var(--accent); background: var(--accent-soft); }
+.sound-ico {
+  flex: none; width: 36px; height: 36px; border-radius: 10px;
+  background: var(--accent) center / 20px no-repeat;
+  background-image: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M4 9h4l5-4v14l-5-4H4z' fill='white'/><path d='M16.5 8.5a5 5 0 0 1 0 7M19 6a8.5 8.5 0 0 1 0 12'/></svg>");
+}
+.sound-head { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+#portal-sound-label { font-size: 15px; font-weight: 650; }
+#portal-sound-badge { padding: 1px 8px; border-radius: 999px; background: var(--accent); color: #fff; font-size: 11.5px; font-weight: 700; letter-spacing: .02em; }
+#portal-sound-hint { font-size: 13px; line-height: 1.4; color: #3d4a5a; }
+#portal-sound-row label::after { content: ""; position: absolute; inset: 0; }
+#portal-sound-row input.switch { position: relative; z-index: 1; }
+html[data-coda] #portal-sound-row { display: none; }
+
+/* arrived from Heartwood: the note reads like a redirect banner */
+html[data-via] #portal-note { background: #f1f3f6; color: #3a4655; border: 1px solid var(--line); }
+html[data-via] #portal-note::before { content: "↪ "; font-weight: 700; color: var(--accent-ink); }
+
+/* sound switches on the bare screens */
+.screen > .sound-toggle {
+  position: fixed; z-index: 90;
+  top: calc(10px + var(--safe-t)); left: calc(12px + var(--safe-l));
+  min-height: 44px; padding: 0 14px;
+  border: 1px solid var(--field-line); border-radius: 999px;
+  background: var(--card); color: var(--fg);
+  font-size: 14px; font-weight: 600;
+}
+#face:has(#face-dark:not([hidden])) > .sound-toggle { z-index: 62; background: transparent; border-color: #2a3029; color: #8f9b8a; }
+#done:has(#done-blank:not([hidden])) > .sound-toggle { background: transparent; border-color: #23282a; color: #7d8686; }
+.term-acts { display: flex; align-items: center; gap: 4px; flex: none; }
+.term-btn, #last > .sound-toggle {
+  min-height: 44px; padding: 0 8px; border: 0; background: transparent;
+  color: #9fae98; font: 13px/1 var(--mono);
+  text-decoration: underline; text-decoration-color: rgba(185, 199, 177, .3); text-underline-offset: 4px;
+}
+#last > .sound-toggle { position: fixed; top: calc(10px + var(--safe-t)); left: calc(8px + var(--safe-l)); right: auto; border-radius: 0; z-index: 90; }
+#last > .disconnect { position: fixed; top: calc(10px + var(--safe-t)); right: calc(8px + var(--safe-r)); }
+
+/* the terminal says it can be typed into */
+#term-input::placeholder { color: #6f7d69; opacity: 1; }
+#term-send {
+  flex: none; min-width: 44px; min-height: 44px; padding: 0;
+  border: 1px solid #2e382d; border-radius: 6px;
+  background: transparent; color: #8fb07f; font: 18px/1 var(--mono);
+}
+#term-form:has(#term-input:disabled) #term-send { opacity: .3; }
+
+/* face down: the dark screen is never just black */
+#face-dark { display: grid; place-items: center; align-content: center; gap: 18px; }
+#face-dark[hidden] { display: none; }
+#face-ring { width: 132px; height: 132px; transform: rotate(-90deg); }
+#face-ring circle { fill: none; stroke-width: 2; }
+.fr-track { stroke: #161a16; }
+.fr-ring { stroke: #3b4a39; stroke-dasharray: 100 100; stroke-dashoffset: 100; transition: stroke-dashoffset .5s linear; stroke-linecap: round; }
+#face-watch { color: #59645a; font: 15px/1.5 var(--mono); text-align: center; min-height: 1.5em; }
+#face-dark:not([hidden]) ~ #face-msg { top: auto; bottom: calc(18% + var(--safe-b)); transform: none; }
+
+/* the way back */
+.back-link { text-decoration: none; }
+#btn-back.back-link { color: var(--accent-fg); }
+#btn-back.back-link::before, #disc-back.back-link::before { content: "← "; white-space: pre; }
+.sheet-foot { flex-direction: column; align-items: stretch; }
+.sheet-foot #btn-back { order: -1; justify-content: center; }
+.sheet-foot .btn-ghost { width: 100%; }
+#disc-back.back-link { align-self: stretch; margin-top: 6px; color: var(--accent-ink); justify-content: center; }
+
+.sheet { position: relative; }
+.back-top {
+  position: absolute; top: 14px; right: 18px;
+  display: inline-flex; align-items: center; min-height: 44px; padding: 0 12px;
+  border: 1px solid var(--line); border-radius: 999px;
+  color: var(--accent-ink); font-size: 14px; font-weight: 600; text-decoration: none;
+  background: var(--card, #fff);
+}
+@media (max-width: 899px) {
+  #log-out {
+    height: calc(100vh - var(--hdr-h) - var(--hud-h) - 92px - var(--guide-h) - 104px);
+    height: calc(100svh - var(--hdr-h) - var(--hud-h) - 92px - var(--guide-h) - 104px);
+    min-height: 220px;
+  }
+}
+
+/* the coda keeps a real off switch (the /32 note is still playing) */
+#portal > .sound-toggle { display: none; }
+html[data-state="coda"] #portal > .sound-toggle { display: inline-flex; align-items: center; top: auto; bottom: calc(14px + var(--safe-b)); background: transparent; color: inherit; border-color: currentColor; opacity: .75; }
