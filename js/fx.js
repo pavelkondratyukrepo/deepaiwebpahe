@@ -394,6 +394,8 @@
         for (var i = 0; i < st.length; i++) {
           if (lastP < st[i].t && p >= st[i].t && nowT - lastCut > 110) { lastCut = nowT; fx('cut', { i: i, n: st.length }); }
         }
+        var rg = geo.rings;
+        for (var r = 0; r < rg.length; r++) if (rg[r].born > 0 && lastP < rg[r].born && p >= rg[r].born) fx('ring', { i: r, f: r / rg.length });
         for (var j = 0; j < LINE_WIN.length; j++) if (lastP < LINE_WIN[j][0] && p >= LINE_WIN[j][0]) fx('line', { i: j });
         if (lastP < CLIMAX_IN && p >= CLIMAX_IN) fx('climax');
         if (lastP < 0.83 && p >= 0.83) fx('still');
@@ -640,15 +642,27 @@
      ========================================================= */
   var Sound = (function () {
     /* Opt-in only: nothing is created until a click on the speaker or on the
-       "best with sound" prompt. Most energy sits between 200 Hz and 4 kHz so
-       laptop and phone speakers can actually play it; everything runs through a
-       compressor and a limiter, every change is ramped, and the context is
-       suspended whenever the tab is hidden. */
+       "best with sound" prompt. Everything is synthesised; there are no files.
+
+       The bed is tonal, not noise: four pitched voices (a just-intonation
+       chord) built from a glassy additive waveform, each a pair of slightly
+       detuned oscillators so it beats, each breathing slowly in and out on its
+       own cycle. Dread does the rest: the root sags three semitones, the major
+       third goes minor, the fifth collapses toward a tritone, the octave sours
+       to a minor ninth and the beating quickens. Fundamentals sit between
+       ~185 and 900 Hz with harmonics above, so phone speakers carry it; the
+       low sine underneath is only support for headphones.
+       Noise is used only for two short, dry events (the knife, a key edge).
+       Space comes from a small feedback-delay network, not a recorded room.
+       Everything runs through a compressor and a limiter, every change is
+       ramped, and the context is suspended whenever the tab is hidden. */
     var btn, btnT, ac = null, on = false, timer = 0;
-    var master, bus, wet, comp, lim;
-    var padG, padF, padVoices = [], choirG, choirF1, choirF2, airG, airF, highG, high, subG, subO;
-    var duck = 1, duckTarget = 1, clockOn = false, nextClock = 0, nextCreak = 0, noiseBuf = null, lastStage = -1;
-    var resolved = false, keyN = 0;
+    var master, bus, wet, comp, lim, glass = null, noiseBuf = null, bed = null;
+    var duck = 1, duckTarget = 1, clockOn = false, nextClock = 0, nextCreak = 0, lastStage = -1;
+    var resolved = false, keyN = 0, clockN = 0, lastRing = 0, lastKey = 0;
+    var BED = 0.2;
+    /* how wrong the product chime has gone, by stage */
+    var SOUR = [0, 0.14, 0.32, 0.52, 0.76, 1];
 
     function label() {
       if (!btn) return;
@@ -660,67 +674,62 @@
       btn.classList.toggle('is-on', on);
     }
 
-    function makeNoise() {
-      var len = ac.sampleRate * 3, buf = ac.createBuffer(1, len, ac.sampleRate), d = buf.getChannelData(0);
-      var rnd = mulberry32(77);
-      for (var i = 0; i < len; i++) d[i] = rnd() * 2 - 1;
-      for (i = 0; i < 1500; i++) { var f = i / 1500; d[i] *= f; d[len - 1 - i] *= f; }
-      return buf;
-    }
-    function impulse(sec, decay) {
-      var len = Math.round(ac.sampleRate * sec), buf = ac.createBuffer(2, len, ac.sampleRate), rnd = mulberry32(5);
-      for (var c = 0; c < 2; c++) {
-        var d = buf.getChannelData(c);
-        for (var i = 0; i < len; i++) d[i] = (rnd() * 2 - 1) * Math.pow(1 - i / len, decay);
-      }
-      return buf;
-    }
-    function osc(type, f) { var o = ac.createOscillator(); o.type = type; o.frequency.value = f; return o; }
+    function osc(type, f) { var o = ac.createOscillator(); if (type === 'glass') o.setPeriodicWave(glass); else o.type = type; o.frequency.value = f; return o; }
     function gain(v) { var g = ac.createGain(); g.gain.value = v; return g; }
     function filt(type, f, q) { var b = ac.createBiquadFilter(); b.type = type; b.frequency.value = f; if (q != null) b.Q.value = q; return b; }
     function set(param, v, tc) { param.setTargetAtTime(v, ac.currentTime, tc || 0.6); }
-    function noiseSrc() { var s = ac.createBufferSource(); s.buffer = noiseBuf; s.loop = true; s.loopStart = Math.random() * 2; return s; }
+    function rnd() { return Math.random(); }
+    function semi(n) { return Math.pow(2, n / 12); }
+
+    function makeNoise() {
+      var len = ac.sampleRate, buf = ac.createBuffer(1, len, ac.sampleRate), d = buf.getChannelData(0), r = mulberry32(77);
+      for (var i = 0; i < len; i++) d[i] = r() * 2 - 1;
+      return buf;
+    }
+    /* a glassy, bowed-sounding waveform: a fundamental and a soft, falling
+       series of partials (enough upper harmonics for a phone speaker) */
+    function makeGlass() {
+      var a = [0, 1, 0.42, 0.24, 0.13, 0.08, 0.045, 0.025, 0.014], re = new Float32Array(a.length), im = new Float32Array(a);
+      return ac.createPeriodicWave(re, im);
+    }
+    /* the room: two allpass diffusers into six damped feedback combs (each
+       its own single loop, with a one-pole damper so its gain can never
+       exceed one), slowly modulated so it doesn't ring, spread over two channels */
+    function room(rt, damp, scale) {
+      function allpass(dt, g) {
+        var inp = gain(1), sum = gain(1), dl = ac.createDelay(0.1), fb = gain(g), ff = gain(-g), out = gain(1);
+        dl.delayTime.value = dt; inp.connect(sum); sum.connect(dl); dl.connect(fb); fb.connect(sum);
+        sum.connect(ff); ff.connect(out); dl.connect(out);
+        return { input: inp, output: out };
+      }
+      var a = Math.exp(-2 * Math.PI * damp / ac.sampleRate);
+      var input = gain(1), hp = filt('highpass', 180, 0.7), ap1 = allpass(0.0051, 0.6), ap2 = allpass(0.0017, 0.6), out = ac.createChannelMerger(2);
+      input.connect(hp); hp.connect(ap1.input); ap1.output.connect(ap2.input);
+      [0.0297, 0.0371, 0.0411, 0.0437, 0.0503, 0.0571].forEach(function (d0, i) {
+        var d = d0 * scale, s = gain(1), dl = ac.createDelay(0.5), lp = ac.createIIRFilter([1 - a], [1, -a]), fb = gain(Math.pow(10, -3 * d / rt)), o = gain(i % 2 ? -0.3 : 0.3);
+        var m = osc('sine', 0.07 + i * 0.043), mg = gain(0.0004);
+        dl.delayTime.value = d; m.connect(mg); mg.connect(dl.delayTime); m.start();
+        ap2.output.connect(s); s.connect(dl); dl.connect(lp); lp.connect(fb); fb.connect(s); lp.connect(o); o.connect(out, 0, i % 2);
+      });
+      return { input: input, output: out };
+    }
 
     function init() {
       var AC = window.AudioContext || window.webkitAudioContext;
       if (!AC) return false;
       try { ac = new AC({ latencyHint: 'playback' }); } catch (e) { ac = new AC(); }
-      noiseBuf = makeNoise();
+      noiseBuf = makeNoise(); glass = makeGlass();
       lim = ac.createDynamicsCompressor();
       lim.threshold.value = -3; lim.knee.value = 0; lim.ratio.value = 20; lim.attack.value = 0.002; lim.release.value = 0.12;
       comp = ac.createDynamicsCompressor();
-      comp.threshold.value = -18; comp.knee.value = 8; comp.ratio.value = 6; comp.attack.value = 0.006; comp.release.value = 0.3;
+      comp.threshold.value = -18; comp.knee.value = 8; comp.ratio.value = 4; comp.attack.value = 0.006; comp.release.value = 0.3;
       var hp = filt('highpass', 55, 0.7);
       master = gain(0);
       master.connect(hp); hp.connect(comp); comp.connect(lim); lim.connect(ac.destination);
-      bus = gain(1); bus.connect(master);                      /* dry */
-      var rv = ac.createConvolver(); rv.buffer = impulse(3.4, 2.6);
-      wet = gain(0.32); wet.connect(rv); rv.connect(master);    /* a large, dim room */
-
-      /* pad: sawtooth voices whose harmonics reach the speakers even when the root is low */
-      padF = filt('lowpass', 2200, 0.6); padG = gain(0);
-      padF.connect(padG); padG.connect(bus); padG.connect(wet);
-      for (var i = 0; i < 4; i++) {
-        var a = osc('sawtooth', 220), b = osc('sawtooth', 220), c = osc('triangle', 440), g = gain(i === 3 ? 0.13 : 0.2), gc = gain(0.5);
-        a.connect(g); b.connect(g); c.connect(gc); gc.connect(g); g.connect(padF);
-        a.start(); b.start(); c.start();
-        padVoices.push({ a: a, b: b, c: c });
-      }
-      /* breath choir: noise through two vowel formants, slowly moving */
-      var ns = noiseSrc();
-      choirF1 = filt('bandpass', 700, 9); choirF2 = filt('bandpass', 1150, 11); choirG = gain(0);
-      ns.connect(choirF1); ns.connect(choirF2); choirF1.connect(choirG); choirF2.connect(choirG); choirG.connect(bus); choirG.connect(wet);
-      var cl = osc('sine', 0.07), clg = gain(90); cl.connect(clg); clg.connect(choirF1.frequency); cl.start();
-      var cl2 = osc('sine', 0.05), clg2 = gain(140); cl2.connect(clg2); clg2.connect(choirF2.frequency); cl2.start();
-      /* room air */
-      airF = filt('bandpass', 1400, 0.5); airG = gain(0);
-      ns.connect(airF); airF.connect(airG); airG.connect(bus);
-      ns.start();
-      /* the thin high tone that arrives late */
-      high = osc('sine', 3520); highG = gain(0); high.connect(highG); highG.connect(bus); high.start();
-      /* a little weight underneath, for headphones; never the main event */
-      subO = osc('sine', 55); subG = gain(0); subO.connect(subG); subG.connect(bus); subO.start();
-
+      bus = gain(1); bus.connect(master);                     /* dry */
+      var rm = room(3.2, 3200, 1.6), rg = gain(1.4);
+      wet = gain(0.3); wet.connect(rm.input); rm.output.connect(rg); rg.connect(master);   /* a large, dim room */
+      buildBed();
       document.addEventListener('visibilitychange', function () {
         if (!ac) return;
         if (document.hidden) { try { ac.suspend(); } catch (e) { /* ignore */ } }
@@ -729,80 +738,168 @@
       return true;
     }
 
+    /* ---------- the bed ---------- */
+    function buildBed() {
+      var b = { g: gain(0), voices: [], VG: [0.36, 0.3, 0.32, 0.18] };
+      b.g.connect(bus); b.g.connect(wet);
+      for (var i = 0; i < 4; i++) {
+        var a = osc('glass', 220), c = osc('glass', 220), ag = gain(0.5), vg = gain(b.VG[i]);
+        a.connect(ag); c.connect(ag); ag.connect(vg); vg.connect(b.g);
+        /* each voice breathes on its own slow cycle, so the chord keeps shifting weight */
+        var l = osc('sine', 0.029 + i * 0.017), lg = gain(0.2); l.connect(lg); lg.connect(ag.gain);
+        a.start(); c.start(); l.start();
+        b.voices.push({ a: a, c: c });
+      }
+      /* a bowed-glass overtone (gentle FM) that grows inharmonic with dread */
+      b.car = osc('sine', 1320); b.mod = osc('sine', 2640); b.modG = gain(0); b.glassG = gain(0);
+      b.mod.connect(b.modG); b.modG.connect(b.car.frequency); b.car.connect(b.glassG); b.glassG.connect(b.g);
+      b.car.start(); b.mod.start();
+      /* the thin, beating high tone that arrives late */
+      b.hiG = gain(0); b.hi = [osc('sine', 1975.5), osc('sine', 1979)];
+      b.hi.forEach(function (o) { o.connect(b.hiG); o.start(); }); b.hiG.connect(b.g);
+      /* a little weight underneath, for headphones; never the main event */
+      b.sub = osc('sine', 110); b.subG = gain(0); b.sub.connect(b.subG); b.subG.connect(bus); b.sub.start();
+      bed = b;
+    }
+    function rootHz(d) { if (d == null) d = currentD(); return 220 * semi(-3 * d); }
+
     /* ---------- one-shot voices ---------- */
-    function env(g, t, peak, a, dcy) {
-      g.gain.setValueAtTime(0.0001, t);
-      g.gain.linearRampToValueAtTime(peak, t + a);
-      g.gain.setTargetAtTime(0.0001, t + a, dcy / 4);
+    /* modal: a struck object as a few sine partials, each with its own decay
+       ([ratio, amp, decay seconds]); used for wood, keys, ticks, bells */
+    function modal(f, parts, peak, at, dest, twin) {
+      var t = ac.currentTime + 0.012 + (at || 0), out = gain(peak), end = 0;
+      out.connect(dest || bus);
+      parts.forEach(function (p) {
+        var fr = f * p[0], dc = p[2], g = gain(0);
+        g.gain.setValueAtTime(0, t);
+        g.gain.linearRampToValueAtTime(p[1], t + Math.min(0.004, dc * 0.2));
+        g.gain.setTargetAtTime(0, t + Math.min(0.004, dc * 0.2), dc / 4);
+        g.connect(out);
+        var o = osc('sine', fr); o.connect(g); o.start(t); o.stop(t + dc * 1.6 + 0.05);
+        if (twin && fr < 4000) { var o2 = osc('sine', fr + twin * (0.6 + rnd() * 0.8)); o2.connect(g); o2.start(t); o2.stop(t + dc * 1.6 + 0.05); }
+        end = Math.max(end, dc);
+      });
+      return t;
     }
-    function bell(f, peak, decay, sour) {
-      var t = ac.currentTime + 0.01, parts = [[1, 1], [2.76, 0.5], [5.4, 0.25], [8.93, 0.12]];
-      if (sour) parts.push([1.06, 0.55]);
-      var g = gain(0); g.connect(bus); g.connect(wet);
-      env(g, t, peak, 0.006, decay);
-      parts.forEach(function (p) { var o = osc('sine', f * p[0]), og = gain(p[1]); o.connect(og); og.connect(g); o.start(t); o.stop(t + decay + 0.5); });
-    }
-    function burst(f0, f1, q, dur, peak, toWet) {
-      var t = ac.currentTime + 0.005, s = noiseSrc(), b = filt('bandpass', f0, q), g = gain(0);
-      s.connect(b); b.connect(g); g.connect(bus); if (toWet) g.connect(wet);
-      b.frequency.setValueAtTime(f0, t); b.frequency.exponentialRampToValueAtTime(Math.max(40, f1), t + dur);
-      g.gain.setValueAtTime(0.0001, t); g.gain.linearRampToValueAtTime(peak, t + Math.min(0.04, dur * 0.2)); g.gain.setTargetAtTime(0.0001, t + dur * 0.35, dur / 3);
-      s.start(t); s.stop(t + dur * 2 + 0.2);
-    }
-    function thunk(f, peak, dur) {
-      var t = ac.currentTime + 0.005, o = osc('sine', f), g = gain(0);
-      o.frequency.setValueAtTime(f, t); o.frequency.exponentialRampToValueAtTime(f * 0.5, t + dur);
-      o.connect(g); g.connect(bus); env(g, t, peak, 0.004, dur); o.start(t); o.stop(t + dur * 3);
-    }
-    function knock(peak) { burst(1300 + Math.random() * 300, 900, 6, 0.06, peak); thunk(330 + Math.random() * 40, peak * 0.7, 0.09); }
-    function chime(sour) {
-      var t = ac.currentTime + 0.01;
-      [[1318.5, 0], [987.8 * (sour ? 0.977 : 1), 0.13]].forEach(function (n) {
-        var o = osc('triangle', n[0]), g = gain(0); o.connect(g); g.connect(bus); g.connect(wet);
-        g.gain.setValueAtTime(0.0001, t + n[1]); g.gain.linearRampToValueAtTime(0.07, t + n[1] + 0.01); g.gain.setTargetAtTime(0.0001, t + n[1] + 0.02, 0.18);
-        o.start(t + n[1]); o.stop(t + n[1] + 1.2);
+    function wetOf(v) { var g = gain(v); g.connect(wet); var d = gain(1); d.connect(bus); d.connect(g); return d; }
+
+    /* the product chime: a clean two-note "ding-dong" early on. Later the
+       same chime comes back wrong: flat, its second note sliding past the
+       fourth toward a tritone, partials going inharmonic, a beating ghost
+       a few hertz off, a slow droop, a longer and wetter tail. */
+    function chime(sour, opt) {
+      opt = opt || {};
+      var t = ac.currentTime + 0.02 + (opt.at || 0), k = opt.k || 1, pk = (opt.peak || 0.085) * (1 - 0.25 * sour);
+      var dest = wetOf(0.25 + 0.6 * sour);
+      var notes = [[1318.5 * semi(-0.35 * sour) * k, 0], [1318.5 * semi(-(5 + 1.4 * sour)) * k, 0.14 + 0.1 * sour]];
+      var parts = [[1, 1], [2 + 0.23 * sour, 0.16 + 0.12 * sour], [3 + 0.55 * sour, 0.05 + 0.08 * sour]];
+      var tc = 0.16 + 0.45 * sour;
+      notes.forEach(function (n) {
+        var g = gain(0), st = t + n[1];
+        g.connect(dest);
+        g.gain.setValueAtTime(0, st); g.gain.linearRampToValueAtTime(pk, st + 0.005); g.gain.setTargetAtTime(0, st + 0.005, tc);
+        parts.forEach(function (p, i) {
+          var o = osc(i ? 'sine' : 'triangle', n[0] * p[0]), pg = gain(p[1]);
+          if (sour > 0) o.frequency.setTargetAtTime(n[0] * p[0] * semi(-0.5 * sour), st + 0.05, tc * 2);
+          o.connect(pg); pg.connect(g); o.start(st); o.stop(st + tc * 7 + 0.1);
+          if (!i && sour > 0.1) { var gh = osc('sine', n[0] + 3 + 9 * sour), gg = gain(0.55 * sour); gh.connect(gg); gg.connect(g); gh.start(st); gh.stop(st + tc * 7 + 0.1); }
+        });
       });
     }
-    function breath(peak) {
-      var t = ac.currentTime + 0.01, s = noiseSrc(), b1 = filt('bandpass', 500, 7), b2 = filt('bandpass', 1050, 9), g = gain(0);
-      s.connect(b1); s.connect(b2); b1.connect(g); b2.connect(g); g.connect(bus); g.connect(wet);
-      b1.frequency.setValueAtTime(480, t); b1.frequency.linearRampToValueAtTime(760, t + 1.6);
-      b2.frequency.setValueAtTime(980, t); b2.frequency.linearRampToValueAtTime(1300, t + 1.6);
-      g.gain.setValueAtTime(0.0001, t); g.gain.linearRampToValueAtTime(peak, t + 0.7); g.gain.setTargetAtTime(0.0001, t + 0.9, 0.5);
-      s.start(t); s.stop(t + 3.5);
+    /* one struck bowl/bell: inharmonic partials, each twinned so it beats */
+    function bowl(f, peak, decay, sour) {
+      var p = [[1, 1, decay], [2.71, 0.55, decay * 0.8], [5.15, 0.3, decay * 0.55], [8.43, 0.14, decay * 0.4], [12.4, 0.06, decay * 0.25]];
+      if (sour) p.push([1.06, 0.4, decay * 0.9]);
+      modal(f, p, peak, 0, wetOf(0.9), 0.9);
     }
-    function swell(freqs, peak, up, hold, down) {
-      var t = ac.currentTime + 0.01, g = gain(0), f = filt('lowpass', 1800, 0.5);
-      f.connect(g); g.connect(bus); g.connect(wet);
-      g.gain.setValueAtTime(0.0001, t); g.gain.linearRampToValueAtTime(peak, t + up); g.gain.setValueAtTime(peak, t + up + hold); g.gain.linearRampToValueAtTime(0.0001, t + up + hold + down);
-      freqs.forEach(function (fr) {
-        var o = osc('sawtooth', fr), o2 = osc('sawtooth', fr * 1.004), og = gain(0.22);
-        o.connect(og); o2.connect(og); og.connect(f); o.start(t); o2.start(t); o.stop(t + up + hold + down + 0.3); o2.stop(t + up + hold + down + 0.3);
+    function tock(f, peak, dest) { modal(f, [[1, 1, 0.07], [2.31, 0.45, 0.035], [4.12, 0.2, 0.018]], peak, 0, dest); }
+    /* a dry knife cut: a short scrape (noise through a narrow, falling
+       band, chattered by stick-slip) that ends in the blade biting wood */
+    function scrape(i, peak) {
+      var t = ac.currentTime + 0.012, dur = 0.12 + rnd() * 0.07, f0 = 4200 - (i % 4) * 260;
+      var s = ac.createBufferSource(); s.buffer = noiseBuf; s.loop = true;
+      var hp = filt('highpass', 1800, 0.7), bp = filt('bandpass', f0, 8), am = gain(0.55), ch = osc('sawtooth', 48 + rnd() * 30), chg = gain(0.45), g = gain(0);
+      ch.connect(chg); chg.connect(am.gain);
+      bp.frequency.setValueAtTime(f0, t); bp.frequency.exponentialRampToValueAtTime(f0 * 0.62, t + dur);
+      s.connect(hp); hp.connect(bp); bp.connect(am); am.connect(g); g.connect(wetOf(0.12));
+      g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(peak, t + 0.012); g.gain.setValueAtTime(peak, t + dur * 0.6); g.gain.setTargetAtTime(0, t + dur * 0.6, 0.025);
+      s.start(t, rnd() * 0.5); s.stop(t + dur + 0.2); ch.start(t); ch.stop(t + dur + 0.2);
+      modal(330 + rnd() * 40, [[1, 1, 0.09], [2.62, 0.5, 0.05], [5.1, 0.25, 0.025]], peak * 0.55, dur * 0.85, wetOf(0.2));
+    }
+    /* a mechanical key: a bright plastic click, a low thock, and the release */
+    function keyClick(del) {
+      var t = ac.currentTime + 0.01, s = ac.createBufferSource(), hp = filt('highpass', 3500, 0.7), g = gain(0);
+      s.buffer = noiseBuf; s.connect(hp); hp.connect(g); g.connect(bus);
+      g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(0.035, t + 0.001); g.gain.setTargetAtTime(0, t + 0.001, 0.0012);
+      s.start(t, rnd() * 0.8); s.stop(t + 0.03);
+      var hi = del ? 1750 : 2300 + rnd() * 350, lo = del ? 185 : 235 + rnd() * 45;
+      modal(hi, [[1, 1, 0.012], [1.7, 0.45, 0.008]], 0.05, 0, wetOf(0.1));
+      modal(lo, [[1, 1, 0.03], [2.4, 0.4, 0.016]], 0.11, 0.002);
+      modal(hi * 0.86, [[1, 1, 0.008]], 0.022, 0.07 + rnd() * 0.03);
+    }
+    /* a held chord that swells and fades, in the glass voice */
+    var swells = [];
+    function swell(freqs, peak, up, hold, down, beat) {
+      var t = ac.currentTime + 0.02, g = gain(0), end = t + up + hold + down;
+      g.connect(bus); g.connect(wet);
+      swells.push(g); setTimeout(function () { var i = swells.indexOf(g); if (i >= 0) swells.splice(i, 1); }, (end - t + 0.5) * 1000);
+      g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(peak, t + up); g.gain.setValueAtTime(peak, t + up + hold); g.gain.linearRampToValueAtTime(0, end);
+      freqs.forEach(function (fr, i) {
+        var o = osc('glass', fr), o2 = osc('glass', fr + (beat || 0.3) * (1 + i * 0.4)), og = gain(0.3 / Math.sqrt(freqs.length));
+        o.connect(og); o2.connect(og); og.connect(g); o.start(t); o2.start(t); o.stop(end + 0.1); o2.stop(end + 0.1);
       });
     }
-    function rootHz() { return 110 * Math.pow(2, -(currentD() * 5) / 12); }
+    function hushSwells() {
+      swells.forEach(function (g) { g.gain.cancelScheduledValues(ac.currentTime); g.gain.setValueAtTime(g.gain.value, ac.currentTime); g.gain.setTargetAtTime(0, ac.currentTime, 0.9); });
+      swells = [];
+    }
+    /* a single glass tone that leans up a semitone, like something taking hold */
+    function lean(f, peak) {
+      var t = ac.currentTime + 0.02, o = osc('glass', f), g = gain(0);
+      o.frequency.setValueAtTime(f, t); o.frequency.setTargetAtTime(f * semi(1), t + 0.4, 0.8);
+      o.connect(g); g.connect(bus); g.connect(wet);
+      g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(peak, t + 0.6); g.gain.setTargetAtTime(0, t + 1.6, 0.7);
+      o.start(t); o.stop(t + 6);
+    }
+    /* wood settling: a stick-slip pulse train ringing two resonances of
+       the grain, its rate bending up and back (a creak, not a gust) */
+    function creak(peak) {
+      var t = ac.currentTime + 0.02, dur = 0.45 + rnd() * 0.45, r0 = 18 + rnd() * 10;
+      var src = osc('sawtooth', r0), b1 = filt('bandpass', 520 + rnd() * 140, 11), b2 = filt('bandpass', 1250 + rnd() * 250, 14), g = gain(0);
+      src.frequency.setValueAtTime(r0, t); src.frequency.linearRampToValueAtTime(r0 * 1.7, t + dur * 0.55); src.frequency.linearRampToValueAtTime(r0 * 1.15, t + dur);
+      b1.frequency.setTargetAtTime(b1.frequency.value * 1.07, t, dur);
+      src.connect(b1); src.connect(b2); b1.connect(g); b2.connect(g); g.connect(bus); g.connect(wet);
+      g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(peak, t + 0.08); g.gain.setValueAtTime(peak, t + dur * 0.7); g.gain.linearRampToValueAtTime(0, t + dur);
+      src.start(t); src.stop(t + dur + 0.05);
+    }
 
     function sfx(e) {
       if (!ac || !on || ac.state !== 'running' || !e) return;
-      var s = currentStage(), r = rootHz();
+      var s = currentStage(), d = currentD(), r = rootHz(d), nowT = performance.now();
       switch (e.k) {
-        case 'notify': chime(s >= 3); break;
-        case 'reply': breath(0.22); bell(r * 4, 0.05, 2.5, s >= 4); break;
-        case 'cut': burst(3400, 650, 2.4, 0.38, 0.32, true); thunk(150, 0.35, 0.16); break;
-        case 'line': knock(0.12); break;
-        case 'climax': swell([r * 2, r * 3, r * 4.24], 0.12, 3, 4, 4); break;
-        case 'still': duckTarget = 0.06; clockOn = false; break;
-        case 'autoscroll': breath(0.1); break;
-        case 'handback': knock(0.14); break;
-        case 'key':
-          keyN++;
-          burst(e.del ? 1700 : 2600 + Math.random() * 600, e.del ? 1200 : 1900, 4, 0.03, 0.16);
-          thunk(e.del ? 210 : 260 + Math.random() * 60, 0.12, 0.05);
+        case 'notify': chime(SOUR[s] || 0); break;
+        case 'reply': bowl(r * 4, 0.06, 2.4, s >= 4); break;
+        case 'cut': scrape(e.i || 0, 0.22); break;
+        case 'ring':
+          /* a soft tick as each ring is laid down, a little lower each time */
+          if (isReduced() || nowT - lastRing < 70) break;
+          lastRing = nowT;
+          modal(2100 * semi(-(e.f || 0) * 7), [[1, 1, 0.014], [2.7, 0.3, 0.007]], 0.035, 0, wetOf(0.25));
           break;
-        case 'reveal': duckTarget = 0.04; bell(165, 0.36, 7.5, true); bell(330 * 1.06, 0.16, 6, false); thunk(110, 0.2, 0.7); breath(0.12); break;
-        case 'send': breath(0.16); break;
+        case 'line': tock(360 + rnd() * 30, 0.1, wetOf(0.35)); break;
+        case 'climax': swell([r * 2, r * 2 * 1.2, r * 2 * 1.40625, r * 4 * semi(1)], 0.07, 3, 4, 4, 0.9); break;
+        case 'still': duckTarget = 0.05; clockOn = false; hushSwells(); break;
+        case 'autoscroll': lean(r * 4, 0.05); break;
+        case 'handback': tock(392, 0.12, wetOf(0.35)); break;
+        case 'key':
+          if (nowT - lastKey < 25) break;
+          lastKey = nowT; keyN++;
+          keyClick(!!e.del);
+          break;
+        case 'reveal': duckTarget = 0.04; bowl(196, 0.3, 9, false); break;
+        case 'send': chime(1, { peak: 0.06 }); break;
         case 'tookback': break;
-        case 'resolve': resolved = true; duckTarget = 0.45; swell([r * 2, r * 2.52, r * 3, r * 4], 0.07, 4, 3, 7); break;
+        case 'resolve': resolved = true; duckTarget = 0.45; swell([r * 2, r * 3, r * 4, r * 6], 0.05, 4, 3, 7, 0.15); break;
       }
     }
 
@@ -811,13 +908,14 @@
       var d = currentD(), t = performance.now();
       /* the clock in the room: from stage 3, slightly irregular, until the stillness */
       if (clockOn && d >= 0.55 && duck > 0.5 && t >= nextClock) {
-        knock(0.05 + 0.04 * smooth(0.55, 0.9, d));
+        clockN++;
+        tock(clockN % 2 ? 1180 : 990, 0.035 + 0.03 * smooth(0.55, 0.9, d), wetOf(0.3));
         nextClock = t + 1150 + Math.random() * 260 + (Math.random() < 0.1 ? 900 : 0);
       }
       /* wood settling */
       if (d >= 0.42 && duck > 0.5 && t >= nextCreak) {
-        if (nextCreak) burst(260 + Math.random() * 80, 520 + Math.random() * 200, 14, 0.9, 0.07 + 0.08 * smooth(0.42, 1, d), true);
-        nextCreak = t + lerp(14000, 6000, smooth(0.42, 1, d)) * (0.6 + Math.random() * 0.8);
+        if (nextCreak) creak(0.5 + 0.5 * smooth(0.42, 1, d));
+        nextCreak = t + lerp(15000, 7000, smooth(0.42, 1, d)) * (0.6 + Math.random() * 0.8);
       }
     }
 
@@ -831,35 +929,38 @@
         var w = (hw() && hw().where) || '';
         var deep = (inCarve && cp >= 0.83) || w === 'end';
         if (!deep && duckTarget < 0.5) duckTarget = 1;
-        if (deep && duckTarget > 0.1) duckTarget = 0.06;
+        if (deep && duckTarget > 0.1) { duckTarget = 0.05; hushSwells(); }
       }
       clockOn = duckTarget > 0.5;
       duck += (duckTarget - duck) * 0.08;
-      var r = rootHz();
-      var third = lerp(1.2599, 1.1892, smooth(0.25, 0.6, d));          /* major → minor */
-      var ratios = [1, third, 1.4983, 2 * (1 + 0.0595 * smooth(0.7, 1, d))]; /* the octave sours to a minor ninth */
-      var spread = 4 + d * 22;
-      for (var i = 0; i < padVoices.length; i++) {
-        var f = r * 2 * ratios[i];
-        set(padVoices[i].a.frequency, f, 1.2); set(padVoices[i].b.frequency, f, 1.2); set(padVoices[i].c.frequency, f * 2, 1.2);
-        set(padVoices[i].a.detune, -spread, 1.5); set(padVoices[i].b.detune, spread * 0.8, 1.5);
+      var r = rootHz(d), b = bed;
+      var third = lerp(1.25, 1.2, smooth(0.18, 0.45, d)) * semi(-0.45 * smooth(0.8, 1, d));   /* major → minor → sagging */
+      var fifth = lerp(1.5, 1.40625, smooth(0.45, 0.92, d));                                  /* the fifth collapses to a tritone */
+      var oct = 2 * lerp(1, 16 / 15, smooth(0.68, 1, d));                                      /* the octave sours to a minor ninth */
+      /* open voicing: the root low, the third and fifth an octave up, the octave above that (phone speakers) */
+      var ratios = [1, third * 2, fifth * 2, oct * 2], beat = 0.12 + 3.2 * Math.pow(d, 1.6);
+      for (var i = 0; i < b.voices.length; i++) {
+        var f = r * ratios[i];
+        set(b.voices[i].a.frequency, f, 1.2);
+        set(b.voices[i].c.frequency, f + beat * (0.7 + 0.25 * i), 1.2);
       }
-      set(padF.frequency, lerp(2600, 1100, d), 1);
-      set(padG.gain, 0.085 * lerp(1, 0.7, d) * duck, 0.8);
-      set(choirG.gain, 1.6 * smooth(0.25, 0.9, d) * duck, 1.2);
-      set(airG.gain, (0.012 + 0.03 * smooth(0.2, 1, d)) * Math.max(duck, 0.15), 1);
-      set(high.frequency, 3520 * (1 + 0.02 * Math.sin(performance.now() / 4000)), 2);
-      set(highG.gain, 0.006 * smooth(0.78, 1, d) * duck, 2);
-      set(subO.frequency, r / 2, 1.5);
-      set(subG.gain, 0.05 * smooth(0.3, 0.9, d) * duck, 1);
+      var gf = r * 6, mr = lerp(2, 1.414, smooth(0.4, 0.9, d));
+      set(b.car.frequency, gf, 1.5); set(b.mod.frequency, gf * mr, 1.5);
+      set(b.modG.gain, gf * lerp(0.25, 1.1, d), 1.5);
+      set(b.glassG.gain, 0.05 * smooth(0.22, 0.8, d), 1.5);
+      set(b.hiG.gain, 0.03 * smooth(0.78, 1, d), 2);
+      set(b.sub.frequency, r / 2, 1.5);
+      set(b.subG.gain, 0.035 * smooth(0.3, 0.9, d) * duck, 1);
+      set(b.g.gain, BED * (0.75 + 0.25 * smooth(0, 0.4, d)) * duck, 0.8);
       set(master.gain, 0.9, 0.4);
-      if (HWstage() !== lastStage) {
-        var prev = lastStage; lastStage = HWstage();
-        if (prev >= 0 && lastStage > prev) bell([660, 587, 523, 466, 415, 370][lastStage] || 370, 0.16, 4.5, lastStage >= 3);
+      var st = currentStage();
+      if (st !== lastStage) {
+        var prev = lastStage; lastStage = st;
+        /* each new stage: the same product chime, a step lower and further gone */
+        if (prev >= 0 && st > prev) chime(SOUR[st] || 1, { k: semi(-st), peak: 0.08 });
       }
       scheduleTexture();
     }
-    function HWstage() { return currentStage(); }
 
     function turnOn() {
       if (!ac && !init()) { if (btnT) btnT.textContent = 'No sound'; return; }
@@ -870,10 +971,10 @@
       master.gain.cancelScheduledValues(ac.currentTime);
       master.gain.setValueAtTime(0.0001, ac.currentTime);
       master.gain.linearRampToValueAtTime(0.9, ac.currentTime + 1.6);   /* fade in, never a jump */
-      lastStage = HWstage();
+      lastStage = currentStage();
       update();
-      /* a small hello so the visitor knows it worked */
-      setTimeout(function () { if (on) chime(false); }, 250);
+      /* a small hello so the visitor knows it worked: the product chime, as it is right now */
+      setTimeout(function () { if (on && ac) chime(SOUR[currentStage()] || 0); }, 250);
       if (!timer) timer = setInterval(update, 120);
       var h = hw(); if (h) { h.soundPref = 'on'; try { h.memory && h.memory.save(); } catch (e) {} }
     }
