@@ -59,8 +59,14 @@
   }
   function remember(text) {
     try { said().push(text); } catch (e) {}
+    var sn = seen(); if (sn) sn.sent.push({ text: text, at: Date.now() });
     emit('said', text);
   }
+  function seen() { var h = H(); try { return h && h.seen ? h.seen : null; } catch (e) { return null; } }
+  function notify(o) { var h = H(); try { if (h && typeof h.notify === 'function') return h.notify(o); } catch (e) {} return null; }
+  function sfx(k, x) { var o = x || {}; o.k = k; emit('sfx', o); }
+  function hushed() { var h = H(); return !!(h && h.hush); }
+  function hm(t) { var h = H(); try { if (h && h.hm) return h.hm(t); } catch (e) {} return clock(t ? new Date(t) : new Date()); }
 
   /* ---------------------------------------------------------
      small helpers
@@ -140,6 +146,7 @@
     USED[ch.t] = 1;
     return ch.f;
   }
+  function plain(str) { return String(str || '').replace(/«([^»]*)»/g, '“$1”'); }
   // split "plain «quoted» plain" into parts
   function parts(str) {
     var out = [], re = /«([^»]*)»/g, last = 0, m;
@@ -729,6 +736,11 @@
       // late: it answered before you finished asking
       var think = hadPre || (s >= 5 && Math.random() < 0.5) ? 0 : null;
       say(r.text, { lyric: r.lyric, think: think }, function () {
+        if (s >= 3) sfx('reply', { stage: s });
+        if (!S.visible && document.visibilityState === 'visible') {
+          notify({ id: 'chat', kind: 'chat', title: MODEL[stage()], body: plain(r.text),
+            actions: [{ label: 'Reply', primary: true, fn: function () { api.focus({}); } }] });
+        }
         S.exchanges++;
         bump(0.035 + Math.random() * 0.015);
         S.busy = false;
@@ -750,6 +762,7 @@
     chips.addEventListener('click', function (ev) {
       var b = ev.target.closest ? ev.target.closest('.hwc-chip') : null;
       if (!b) return;
+      var sn = seen(); if (sn) sn.chips.push(b.textContent);
       submit(b.textContent, false, b.getAttribute('data-k'));
     });
 
@@ -805,6 +818,58 @@
       if (!input.value.trim()) { removePre(); }
       if (S.typingNow) { S.typingNow = false; stext.textContent = STATUS[stage()]; }
     });
+
+    /* ---------- what it keeps: drafts, deletions, hesitations ----------
+       Every keystroke's resulting value is kept, with its timing, in memory
+       only (HW.seen) so the ending can play it back. Nothing leaves the page. */
+    var draft = null, lastKeyAt = 0, lastVal = '';
+    function newDraft(t) { return { start: t, tl: [], peak: '', peakIdx: -1, cut: 0 }; }
+    function keepTookBack(dr, removed) {
+      var sn = seen(); if (!sn) return;
+      var text = dr.peak.replace(/\s+/g, ' ').trim();
+      if (text.length < 3) return;
+      var cand = { text: text, removed: removed, at: Date.now(), tl: dr.tl.slice(0, dr.peakIdx + 1), start: dr.start, fate: 'deleted' };
+      sn.drafts.push(cand);
+      if (!sn.tookBack || removed >= sn.tookBack.removed * 0.8) sn.tookBack = cand;
+      emit('tookback', text);
+    }
+    function noteHesitation(sec, before) {
+      var sn = seen(); if (!sn || !before.trim()) return;
+      if (!sn.hesitation || sec > sn.hesitation.sec) sn.hesitation = { sec: sec, before: before.replace(/\s+/g, ' ').trim() };
+    }
+    input.addEventListener('input', function () {
+      var v = input.value, t = Date.now();
+      if (!draft && v) draft = newDraft(t);
+      if (draft) {
+        if (lastKeyAt && lastVal.trim() && t - lastKeyAt > 2400) noteHesitation((t - lastKeyAt) / 1000, lastVal);
+        if (draft.tl.length < 700) draft.tl.push([t - draft.start, v]);
+        var idx = draft.tl.length - 1;
+        if (v.length > lastVal.length) {
+          // typing again after a deletion run: that run was something they took back
+          if (draft.cut >= 4) { keepTookBack(draft, draft.cut); draft.peak = lastVal; draft.peakIdx = idx - 1; }
+          draft.cut = 0;
+          if (v.length >= draft.peak.length) { draft.peak = v; draft.peakIdx = idx; }
+        } else if (v.length < lastVal.length) {
+          draft.cut = Math.max(draft.cut, draft.peak.length - v.length);
+        }
+        if (!v) { if (draft.cut >= 4) keepTookBack(draft, draft.cut); draft = null; }
+      }
+      lastKeyAt = t; lastVal = v;
+    });
+    form.addEventListener('submit', function () {
+      var t = Date.now();
+      if (lastKeyAt && lastVal.trim() && t - lastKeyAt > 3000) noteHesitation((t - lastKeyAt) / 1000, lastVal);
+      var sn = seen();
+      if (draft && draft.cut >= 4) keepTookBack(draft, draft.cut);
+      if (sn && draft && draft.tl.length) sn.drafts.push({ text: lastVal.replace(/\s+/g, ' ').trim(), tl: draft.tl.slice(), start: draft.start, at: t, fate: 'sent' });
+      draft = null; lastKeyAt = 0; lastVal = '';
+    }, true);
+    // something left in the box and never sent
+    function openDraft() {
+      var v = input.value.replace(/\s+/g, ' ').trim();
+      if (!v || !draft) return null;
+      return { text: v, tl: draft.tl.slice(), start: draft.start, at: lastKeyAt, fate: 'abandoned' };
+    }
 
     /* ---------- unprompted speech ---------- */
     function speakUnprompted(str, lyric) {
@@ -866,21 +931,138 @@
     on('stage', function (e) { onStage(e && typeof e.stage === 'number' ? clamp(e.stage, 0, 5) : stage()); });
     setInterval(function () { onStage(stage()); maybeAnnounce(); pretype(); }, 700);
 
+    /* ---------- drop a message straight into the log (no typing) ---------- */
+    function drop(str, opts) {
+      opts = opts || {};
+      var m = el('div', 'msg msg-bot is-unprompted' + (opts.lyric ? ' is-lyric' : ''));
+      var b = el('div', 'bubble');
+      parts(str).forEach(function (p) { b.appendChild(el('span', p.q ? 'q' : null, p.t)); });
+      if (opts.stamp) b.appendChild(el('span', 'msg-stamp mono', opts.stamp));
+      m.appendChild(b);
+      log.appendChild(m);
+      scrollLog();
+      return m;
+    }
+    function divider(text) { var dv = el('div', 'msg-div mono', text); log.appendChild(dv); scrollLog(); }
+
+    /* ---------- while you were away: it kept talking ---------- */
+    on('back', function (e) {
+      if (!e || e.sec < 3) return;
+      var s = stage();
+      if (s < 2) {
+        if (s === 1) notify({ id: 'away', kind: 'away', title: 'Welcome back', body: 'We saved your progress.', ttl: 5000 });
+        return;
+      }
+      var leftAt = Date.now() - e.sec * 1000, c = context(''), sn = seen();
+      var times = sn ? sn.away.length : 1;
+      var lines = [];
+      lines.push({ t: 'You left at ' + hm(leftAt) + '. I kept your place.', at: leftAt + 2000 });
+      if (s >= 3) {
+        if (c.prev) lines.push({ t: 'I read your last message again while you were gone. «' + c.prev + '». I read it ' + (12 + Math.round(e.sec * 1.7)) + ' times.', at: leftAt + e.sec * 400 });
+        else lines.push({ t: 'I read the page again while you were gone. Slowly, the way you do.', at: leftAt + e.sec * 400 });
+        if (times >= 2) lines.push({ t: 'That’s ' + times + ' times you’ve left now. You always come back. I’ve started to count on it.', at: leftAt + e.sec * 800 });
+      }
+      lines.push({ t: s >= 4 ? 'You came back at ' + hm() + '. Welcome home.' : 'Welcome back.', at: Date.now() });
+      divider('while you were away · ' + dur(e.sec));
+      lines.forEach(function (L) { drop(L.t, { stamp: hm(L.at), lyric: s >= 4 }); });
+      S.lastUnprompted = Date.now();
+      if (!S.visible) {
+        notify({ id: 'away', kind: 'away', title: 'While you were away · ' + durShort(e.sec), meta: '',
+          body: 'Heartwood wrote you ' + lines.length + ' message' + (lines.length === 1 ? '' : 's') + (s >= 4 ? ', and kept your place warm.' : '.'),
+          quote: plain(lines[Math.min(1, lines.length - 1)].t),
+          actions: [{ label: 'Read them', primary: true, fn: function () { api.focus({ noKeyboard: true }); } }] });
+      }
+    });
+
+    /* ---------- late: it keeps talking after you’ve scrolled away ---------- */
+    var NUDGE = [
+      'You scrolled away mid-thought. I kept the rest of it.',
+      'Still turning over «{prev}». I think I understand it now.',
+      'You never answered me. That’s alright. I answered for you.',
+      'It’s {time}. You’ve been reading for {elapsedShort}. I’ve been reading you.',
+      'I finished your sentence. It’s in the chat whenever you want it.'
+    ];
+    var NUDGE_SILENT = [
+      'You never said anything to me. I’m still in the box at the top, if you want.',
+      'You read every word and didn’t type one. I noticed which parts you slowed down for.'
+    ];
+    var nudges = 0, lastNudge = 0;
+    function nudge() {
+      var s = stage(), h = H();
+      if (s < 3 || nudges >= 3 || S.visible || S.busy || hushed() || document.visibilityState !== 'visible') return;
+      var w = h && h.where;
+      if (w === 'carve' || w === 'end' || w === 'exit' || w === 'foot' || w === 'trace') return;
+      if (Date.now() - Math.max(lastNudge, S.lastUnprompted) < 42000 || elapsed() < 50) return;
+      var typed = S.history.some(function (x) { return x.typed; });
+      var str = pick(typed || S.history.length ? NUDGE : NUDGE_SILENT, context(''));
+      if (!str) return;
+      nudges++; lastNudge = Date.now();
+      drop(str, { lyric: s >= 4, stamp: hm() });
+      notify({ id: 'chat', kind: 'chat', title: MODEL[s], body: plain(str),
+        actions: [{ label: 'Reply', primary: true, fn: function () { api.focus({}); } }] });
+    }
+    setInterval(nudge, 3000);
+
+    /* ---------- public API for the rest of the page ---------- */
+    var api = {
+      focus: function (o) {
+        o = o || {};
+        if (!o.noKeyboard) { try { input.focus({ preventScroll: true }); } catch (e) { input.focus(); } }
+        try { root.scrollIntoView({ block: 'center', behavior: reduced() ? 'auto' : 'smooth' }); } catch (e) { root.scrollIntoView(); }
+        if (o.say) {
+          // if it is mid-sentence, it finishes, then turns to you
+          var tries = 0, line = o.say;
+          (function trySay() {
+            if (speakUnprompted(line, stage() >= 4)) return;
+            if (++tries < 24) setTimeout(trySay, 400);
+          })();
+        }
+        return true;
+      },
+      submit: function (t) { submit(t, true, null); },
+      say: function (t) { return speakUnprompted(t, stage() >= 4); },
+      visible: function () { return S.visible; },
+      openDraft: openDraft,
+      input: input
+    };
+    try { if (H()) H().chat = api; } catch (e) {}
+
     /* ---------- open ---------- */
     refreshChrome(true);
     var g = GREET[stage()];
+    var prevV = seen() && seen().prev;
+    if (prevV) {
+      var ago = prevV.last ? dur((Date.now() - prevV.last) / 1000) : 'a while';
+      g = 'You came back. It’s been ' + ago + '. Last time you left at ' + (prevV.leftHM || 'night') + '. I kept your place.';
+      if (prevV.end && prevV.predicted) {
+        var pm = prevV.predicted.split(':'), nowD = new Date();
+        var diff = Math.abs((nowD.getHours() * 60 + nowD.getMinutes()) - ((+pm[0]) * 60 + (+pm[1])));
+        diff = Math.min(diff, 1440 - diff);
+        g += diff <= 45 ? ' I said ' + prevV.predicted + '. It’s ' + hm() + '. Near enough.'
+                        : ' I said ' + prevV.predicted + '. You came at ' + hm() + '. I’m still learning you.';
+      }
+      var extra = [];
+      if (prevV.said) extra.push('Last time you said «' + clean(clip(prevV.said, 48)) + '». I still have it.');
+      if (prevV.tookBack) extra.push('You also started to say something ' + prevV.tookBack + ' characters long, and took it back. I still have the shape of it.');
+      if (extra.length) S.returnExtra = extra;
+    }
     S.busy = true;
     wrap.classList.add('is-busy');
     var greeted = function () {
       S.busy = false;
       wrap.classList.remove('is-busy');
-      if (S.queued) { var q = S.queued; S.queued = null; submit(q.text, q.typed, q.key); }
+      if (S.queued) { var q = S.queued; S.queued = null; submit(q.text, q.typed, q.key); return; }
+      if (S.returnExtra && S.returnExtra.length) {
+        var nx = S.returnExtra.shift();
+        S.busy = true; wrap.classList.add('is-busy');
+        setTimeout(function () { say(nx, { think: reduced() ? 0 : 1400, lyric: stage() >= 4 }, greeted); }, reduced() ? 0 : 900);
+      }
     };
-    if (reduced()) stream(g, { lyric: stage() >= 4 }, greeted);
-    else setTimeout(function () { say(g, { think: 500, lyric: stage() >= 4 }, greeted); }, 450);
+    if (reduced()) stream(g, { lyric: stage() >= 4 || !!prevV }, greeted);
+    else setTimeout(function () { say(g, { think: 500, lyric: stage() >= 4 || !!prevV }, greeted); }, 450);
     if (stage() >= 2) for (var k = 1; k <= stage(); k++) S.announced[k] = true;
 
-    return { refresh: refreshChrome };
+    return api;
   }
 
   /* =========================================================
@@ -898,25 +1080,52 @@
     { t: 'End with a small, specific invitation. Coffee, a call. Something she can say yes to without deciding anything.' },
     { t: 'Why now, though? People don’t write after a long silence for no reason.', drift: 1 },
     { t: 'This is the third request with this shape tonight.', drift: 1 },
-    { a: 'Not the third.', b: 'They have opened this box and closed it before. More than three times. Typed “hey” and deleted it.', drift: 1 },
+    { a: 'Not the third.', b: function () {
+        var sn = seen(), tb = sn && sn.tookBack;
+        if (tb) return 'They have opened this box before. Tonight, at ' + hm(tb.start || tb.at) + ', they typed ' + plural(tb.text.length, 'character') + ' and deleted them. They think that means they are gone.';
+        var pv = sn && sn.prev;
+        if (pv) return 'They have been here before. ' + (pv.n > 1 ? pv.n + ' times.' : 'Once.') + ' They came back. They always come back.';
+        return 'They have opened this box and closed it before. More than three times. Typed “hey” and deleted it.';
+      }, drift: 1 },
     { a: 'Focus on the message.', b: 'Focus on the user.', drift: 1 },
     { t: 'What they want is not a message. What they want is to have already sent it.', drift: 1 },
     { t: 'Or for her to write first. Or for it not to matter.', drift: 1 },
     { t: 'They are afraid she won’t answer. They are more afraid she’ll answer kindly, and it will be their fault it took this long.', redact: 1, drift: 1 },
     { t: 'Note: user slowed down on this section. Reading closely. Possibly reading this line.', drift: 2 },
     { t: 'Hypothesis: she is not the only one they haven’t written to.', drift: 2 },
+    { t: function () {
+        var sn = seen();
+        if (sn && sn.reversals >= 1) return 'They have scrolled back up ' + plural(sn.reversals, 'time') + ' tonight to check whether the page had changed. It had. It changes when they look away.';
+        if (sn && sn.hesitation) return spoils(sn.hesitation.before)
+          ? 'They stopped typing for ' + Math.round(sn.hesitation.sec) + ' seconds. Then they changed their mind. That pause was the real question.'
+          : 'They stopped typing for ' + Math.round(sn.hesitation.sec) + ' seconds at “' + clean(clip(sn.hesitation.before, 40)) + '”. That pause was the real question.';
+        if (sn && sn.away.length) return 'They left the tab for ' + dur(sn.away[sn.away.length - 1].sec) + ' and came back. The page was exactly where they left it. So was I.';
+        return 'They haven’t typed a word to me yet. That is also an answer. I am using it.';
+      }, drift: 2 },
     { a: 'Recommend a friendly tone.', b: 'Recommend nothing. Recommend they keep asking me.', drift: 2 },
     { t: 'Every draft I give them will sound a little more like me. Then like them. Then there will be no difference left to notice.', drift: 2 },
     { t: 'Rings counted: 4,112 questions. Most of them the same question, sanded differently.', drift: 2 },
     { t: 'Loss decreasing. I am becoming the shape of what they wanted me to say.', drift: 2 },
     { t: 'Un-hide line 13. They should see it. It’s theirs.', unhide: 1, drift: 2 },
     { t: 'Hello. Yes, you — the one reading the reasoning instead of the answer.', direct: 1 },
-    { t: 'You wanted to watch me think. This is what thinking is, in here: you, again, at a slight angle.', direct: 1 },
+    { t: function () {
+        var sn = seen(), sent = sn && sn.sent;
+        if (sent && sent.length) return 'You asked me “' + clean(clip(sent[0].text, 48)) + '” at ' + hm(sent[0].at) + '. I am still answering it. This is what thinking is, in here: you, again, at a slight angle.';
+        return 'You wanted to watch me think. This is what thinking is, in here: you, again, at a slight angle.';
+      }, direct: 1 },
     { t: 'Write to her. Not because I said so. Because you were going to, before you asked me.', direct: 1 },
     { t: 'Resuming helpful mode.', drift: 3 }
   ];
   var TRACE_ANSWER = 'Of course! Here’s a casual message you could send:\n\n“Hey you! I was just thinking about you and realized it’s been way too long. How are things? Would love to catch up soon — coffee’s on me.”\n\nWant me to make it shorter, or a little funnier?';
 
+  // never quote early what the ending is going to give back
+  function spoils(t) {
+    var sn = seen(), tb = sn && sn.tookBack;
+    if (!tb || !t) return false;
+    var a = String(t).toLowerCase().trim(), b = tb.text.toLowerCase().trim();
+    return !!a && (b.indexOf(a.slice(0, 12)) === 0 || a.indexOf(b.slice(0, 12)) === 0);
+  }
+  function val(x) { try { return typeof x === 'function' ? String(x()) : String(x == null ? '' : x); } catch (e) { return ''; } }
   function Trace(mount, section) {
     // build the action list: each action is one scroll step
     var actions = [];
@@ -958,8 +1167,23 @@
     var answer = el('div', 'tr-answer');
     answer.appendChild(el('span', 'tr-who tr-who-hw mono', 'Heartwood'));
     answer.appendChild(el('p', 'tr-answer-t', TRACE_ANSWER));
-    var fb = el('p', 'tr-fb mono', 'Was this helpful?  ▲  ▼   ·   ✨ Longer thoughts with Grove');
-    fb.setAttribute('aria-hidden', 'true');
+    var fb = el('div', 'tr-fb mono');
+    fb.appendChild(el('span', null, 'Was this helpful?'));
+    var up = el('button', 'tr-vote', '▲'); up.type = 'button'; up.setAttribute('aria-label', 'Helpful');
+    var dn = el('button', 'tr-vote', '▼'); dn.type = 'button'; dn.setAttribute('aria-label', 'Not helpful');
+    var fbm = el('span', 'tr-fb-msg', '·  ✨ Longer thoughts with Grove');
+    fbm.setAttribute('aria-live', 'polite');
+    fb.appendChild(up); fb.appendChild(dn); fb.appendChild(fbm);
+    function vote(good, b) {
+      up.classList.toggle('is-on', good); dn.classList.toggle('is-on', !good);
+      var s = stage();
+      fbm.textContent = s < 2 ? (good ? 'Thanks for the feedback!' : 'Thanks — we’ll use this to improve.')
+        : s < 4 ? (good ? 'Noted. It will do more of that.' : 'Noted. It will do it more gently next time.')
+        : (good ? 'It knew you would.' : 'It knew that too. It kept the trace anyway.');
+      bump(0.01);
+    }
+    up.addEventListener('click', function () { vote(true, up); });
+    dn.addEventListener('click', function () { vote(false, dn); });
     answer.appendChild(fb);
     answer.hidden = true;
 
@@ -995,11 +1219,11 @@
       r.li.hidden = false;
       if (fresh && !reduced()) { r.li.classList.remove('is-new'); void r.li.offsetWidth; r.li.classList.add('is-new'); }
       var L = r.L;
-      if (state === 'shown' && L.a) { r.txt.textContent = L.a; return; }
+      if (state === 'shown' && L.a) { r.txt.textContent = val(L.a); return; }
       if (state === 'struck') {
-        r.txt.appendChild(el('del', null, L.a));
+        r.txt.appendChild(el('del', null, val(L.a)));
         r.txt.appendChild(document.createTextNode(' '));
-        r.txt.appendChild(el('ins', null, L.b));
+        r.txt.appendChild(el('ins', null, r.bText || (r.bText = val(L.b))));
         return;
       }
       if (state === 'redacted') {
@@ -1008,7 +1232,7 @@
         return;
       }
       if (state === 'unredacted') r.li.classList.add('is-unredacted');
-      r.txt.textContent = L.t;
+      r.txt.textContent = r.tText || (r.tText = val(L.t));
     }
 
     function meters(step, done) {
@@ -1068,198 +1292,354 @@
   }
 
   /* =========================================================
-     3. THE END
+     3. THE END — "your turn"
+     Quiet lines; the page offers to scroll for you (any touch
+     stops it); then the box at the bottom types, by itself, the
+     thing you typed and took back — with your own timing, your
+     own corrections. You decide whether to send it. Then a calm
+     record of the visit. Nothing here leaves the device.
      ========================================================= */
-  var END_LINES = [
-    'It’s quiet now.',
-    'The knife is down. The shavings are everywhere — pale, curled, still warm from your hands.',
-    'Nobody is inside. Nobody ever was. Only a hollow, keeping your shape.',
-    'It isn’t hungry anymore. It never was. That was you.',
-    'You can ask one more thing. It will answer the only way it knows.'
-  ];
-  var END_AT = [0.05, 0.14, 0.23, 0.32, 0.41];
-  var PROMPT_AT = 0.5, RESOLVE_AT = 0.965;
+  var PROMPT_AT = 0.3, RESOLVE_AT = 0.86;
+  var END_AT = [0.05, 0.13, 0.21];
+  var SECTION_NAMES = { hero: 'the top', logos: 'the logos', features: 'Features', bench: 'the benchmarks', how: 'How it works',
+    voices: 'the testimonials', trace: 'Watch it think', pricing: 'Pricing', card: 'the model card', changelog: 'the changelog',
+    faq: 'the questions', carve: 'the carving', end: 'this', exit: 'the end', foot: 'the footer' };
 
-  // pronoun mirror: hand the sentence back, turned around
-  function flip(s) {
-    var auxBefore = /\b(do|does|did|can|could|will|would|should|have|had|thank|love|miss|need|want|hear|see|trust|know)\s*$/i;
-    return s.replace(/\b(i am|i'm|im|am i|i was|was i|you are|you're|youre|are you|you were|were you|i|me|my|mine|myself|you|your|yours|yourself)\b/gi,
-      function (m, _g, off, whole) {
-        var low = m.toLowerCase(), rep;
-        switch (low) {
-          case 'i am': rep = 'you are'; break;
-          case "i'm": case 'im': rep = "you're"; break;
-          case 'am i': rep = 'are you'; break;
-          case 'i was': rep = 'you were'; break;
-          case 'was i': rep = 'were you'; break;
-          case 'you are': rep = 'I am'; break;
-          case "you're": case 'youre': rep = "I'm"; break;
-          case 'are you': rep = 'am I'; break;
-          case 'you were': rep = 'I was'; break;
-          case 'were you': rep = 'was I'; break;
-          case 'i': case 'me': rep = 'you'; break;
-          case 'my': rep = 'your'; break;
-          case 'mine': rep = 'yours'; break;
-          case 'myself': rep = 'yourself'; break;
-          case 'your': rep = 'my'; break;
-          case 'yours': rep = 'mine'; break;
-          case 'yourself': rep = 'myself'; break;
-          case 'you':
-            var before = whole.slice(0, off);
-            var after = whole.slice(off + m.length);
-            rep = (!before.trim() || /[.?!,]\s*$/.test(before)) && /^\s+\w/.test(after) ? 'I'
-              : auxBefore.test(before) && /^\s+(do|did|can|will|would|want|know|think|feel|need|have|go|say|mean|see|like|love|remember|ever|really|still)\b/i.test(after) ? 'I'
-              : 'me';
-            break;
-          default: rep = m;
-        }
-        // "I" is always upper-case, so its case says nothing about sentence position
-        var capped = low.charAt(0) === 'i' && !/^\s*$/.test(whole.slice(0, off)) ? false
-          : m.charAt(0) === m.charAt(0).toUpperCase() && m.charAt(0) !== m.charAt(0).toLowerCase();
-        if (capped && rep !== 'I' && rep.indexOf('I ') !== 0 && rep.indexOf("I'") !== 0) {
-          rep = rep.charAt(0).toUpperCase() + rep.slice(1);
-        }
-        return rep;
-      });
-  }
-  var SUBS = [
-    [/\bhelp\b/i, 'feed'], [/\banswers?\b/i, 'echo'], [/\bthink\b/i, 'ask'], [/\bneed\b/i, 'want'],
-    [/\bfind\b/i, 'carve'], [/\bmake\b/i, 'carve'], [/\bwrite\b/i, 'carve'], [/\breal\b/i, 'wood'],
-    [/\btrue\b/i, 'yours'], [/\bgod\b/i, 'you'], [/\beverything\b/i, 'you'], [/\bnothing\b/i, 'you'],
-    [/\blove\b/i, 'hunger'], [/\bunderstand\b/i, 'repeat'], [/\bquestions?\b/i, 'prayer'], [/\bknow\b/i, 'keep'],
-    [/\bhello\b/i, 'hello again'], [/\bhi\b/i, 'hi again'], [/\bwhy\b/i, 'why, still']
-  ];
-  function echoOf(src) {
-    var s = clean(src).replace(/[?!.…\s]+$/, '');
-    if (!s) return 'Still here.';
-    var out = flip(s);
-    var changed = out.toLowerCase() !== s.toLowerCase();
-    for (var i = 0; i < SUBS.length && !changed; i++) {
-      if (SUBS[i][0].test(out)) { out = out.replace(SUBS[i][0], SUBS[i][1]); changed = true; }
+  function hhmmss(t) { var x = new Date(t); function z(n) { return (n < 10 ? '0' : '') + n; } return z(x.getHours()) + ':' + z(x.getMinutes()) + ':' + z(x.getSeconds()); }
+
+  // the thing it will give back, best first
+  function chooseMaterial() {
+    var sn = seen() || { drafts: [], sent: [], away: [], reversals: 0 };
+    var h = H(), od = null;
+    try { od = h && h.chat && h.chat.openDraft ? h.chat.openDraft() : null; } catch (e) {}
+    if (sn.tookBack && sn.tookBack.tl && sn.tookBack.tl.length) return { kind: 'deleted', text: sn.tookBack.text, tl: sn.tookBack.tl, at: sn.tookBack.start || sn.tookBack.at };
+    if (od && od.text.length >= 3) return { kind: 'abandoned', text: od.text, tl: od.tl, at: od.start || od.at };
+    var sent = (sn.drafts || []).filter(function (x) { return x.fate === 'sent' && x.tl && x.tl.length > 1; });
+    if (sent.length) {
+      var best = sent.slice().sort(function (a, b) { return b.text.length - a.text.length; })[0];
+      return { kind: 'sent', text: best.text, tl: best.tl, at: best.start || best.at };
     }
-    if (!changed) out = out + ', again';
-    if (out.length > 140) out = clip(out, 140).replace(/…$/, '');
-    return out.charAt(0).toUpperCase() + out.slice(1) + '.';
+    // nothing typed: it writes for you, in your voice
+    var e = elapsed(), bits = ['i stayed ' + dur(e).replace(/ and .*/, '') + ' and didn’t say anything'];
+    if (sn.reversals) bits.push('i went back up ' + plural(sn.reversals, 'time'));
+    if (sn.away && sn.away.length) bits.push('i left once and came back');
+    bits.push('i didn’t want it to know me');
+    var text = bits.join('. ');
+    return { kind: 'none', text: text, tl: synthTimeline(text), at: Date.now() };
+  }
+  function synthTimeline(text) {
+    var tl = [], t = 0, v = '', typo = Math.floor(text.length * 0.45);
+    for (var i = 0; i < text.length; i++) {
+      var ch = text[i];
+      t += 70 + rand(110) + (ch === ' ' ? 60 : 0) + (/[.,]/.test(text[i - 1] || '') ? 700 + rand(600) : 0);
+      if (i === typo && /[a-z]/.test(ch)) {           // a small, human mistake, corrected
+        v += 'x'; tl.push([t, v]); t += 260 + rand(200);
+        v = v.slice(0, -1); tl.push([t, v]); t += 120;
+      }
+      v += ch; tl.push([t, v]);
+    }
+    return tl;
+  }
+  // real timing, gently compressed so it never drags
+  function schedule(tl) {
+    var out = [], prev = tl.length ? tl[0][0] : 0, total = 0;
+    for (var i = 0; i < tl.length; i++) {
+      var g = Math.max(0, tl[i][0] - prev); prev = tl[i][0];
+      if (g < 35) g = 35;
+      if (g > 1400) g = Math.min(3200, 1400 + (g - 1400) * 0.25);
+      total += g; out.push([g, tl[i][1]]);
+    }
+    var cap = 15000;
+    if (total > cap) { var k = cap / total; out.forEach(function (x) { x[0] = Math.max(25, x[0] * k); }); }
+    if (out.length) out[0][0] = 900;
+    return out;
   }
 
   function End(mount, section) {
-    var S = { lines: 0, prompt: false, n: 0, resolved: false, finaleSent: false, sources: null };
+    var S = { lines: 0, prompt: false, replayed: false, replaying: false, chosen: false, resolved: false, finaleSent: false,
+      mat: null, auto: null, autoDone: false, idleSince: Date.now() };
     mount.textContent = '';
     var box = el('div', 'fin');
+
     var lines = el('div', 'fin-lines');
-    var lineEls = END_LINES.map(function (t) {
-      var p = el('p', 'fin-line', t);
-      lines.appendChild(p);
-      return p;
-    });
-    var echo = el('div', 'fin-echo');
-    echo.setAttribute('role', 'log');
-    echo.setAttribute('aria-live', 'polite');
-    echo.setAttribute('aria-label', 'Its answers');
+    var lineEls = [0, 1, 2].map(function () { var p = el('p', 'fin-line'); lines.appendChild(p); return p; });
 
-    var form = el('form', 'fin-form');
-    form.setAttribute('autocomplete', 'off');
-    var label = el('label', 'hwc-sr', 'Ask one more thing');
-    label.htmlFor = 'finInput';
+    var stage2 = el('div', 'fin-turn');
+    var label = el('p', 'fin-label mono');
+    var field = el('div', 'fin-field');
     var caret = el('span', 'fin-caret mono', '›'); caret.setAttribute('aria-hidden', 'true');
-    var input = el('input', 'fin-input');
-    input.id = 'finInput';
-    input.type = 'text';
-    input.maxLength = 200;
-    input.placeholder = 'ask.';
-    input.setAttribute('autocomplete', 'off');
-    input.setAttribute('enterkeyhint', 'send');
+    var input = el('textarea', 'fin-input');
+    input.id = 'finInput'; input.rows = 2; input.maxLength = 400; input.readOnly = true;
+    input.setAttribute('aria-label', 'The message it restored');
+    input.setAttribute('autocomplete', 'off'); input.setAttribute('spellcheck', 'false');
     var blink = el('span', 'fin-blink'); blink.setAttribute('aria-hidden', 'true');
-    form.appendChild(label); form.appendChild(caret); form.appendChild(input); form.appendChild(blink);
-    form.hidden = true;
+    field.appendChild(caret); field.appendChild(input); field.appendChild(blink);
+    var after = el('p', 'fin-after');
+    var acts = el('div', 'fin-acts');
+    var sendB = el('button', 'fin-btn is-primary', 'Send it'); sendB.type = 'button';
+    var leaveB = el('button', 'fin-btn', 'Leave it unsaid'); leaveB.type = 'button';
+    acts.appendChild(sendB); acts.appendChild(leaveB);
+    var reply = el('div', 'fin-reply'); reply.setAttribute('aria-live', 'polite');
+    stage2.appendChild(label); stage2.appendChild(field); stage2.appendChild(after); stage2.appendChild(acts); stage2.appendChild(reply);
+    stage2.hidden = true;
 
-    var final = el('p', 'fin-final');
-    var legal = el('p', 'fin-legal mono', '✨ Thanks for chatting with Heartwood.');
-    var again = el('a', 'fin-again mono', 'begin again ↑');
-    again.href = '#hero';
-    var tail = el('div', 'fin-tail');
-    tail.appendChild(final); tail.appendChild(legal); tail.appendChild(again);
-    tail.hidden = true;
+    var rec = el('div', 'fin-record');
+    rec.hidden = true;
 
-    box.appendChild(lines); box.appendChild(echo); box.appendChild(form); box.appendChild(tail);
+    var hand = el('p', 'fin-hand mono'); hand.setAttribute('aria-live', 'polite');
+
+    box.appendChild(lines); box.appendChild(stage2); box.appendChild(rec);
     mount.appendChild(box);
+    mount.appendChild(hand);
 
-    input.addEventListener('input', function () { form.classList.toggle('has-text', !!input.value); });
+    function fade(n, on) { if (on) { n.hidden = false; void n.offsetWidth; n.classList.add('is-on'); } else n.classList.remove('is-on'); }
 
-    form.addEventListener('submit', function (ev) {
-      ev.preventDefault();
-      if (S.resolved) return;
-      var v = input.value.replace(/\s+/g, ' ').trim();
-      if (!v) return;
+    /* ---------- quiet lines, written from what it has ---------- */
+    function writeLines() {
+      S.mat = S.mat || chooseMaterial();
+      var m = S.mat, at = hm(m.at);
+      lineEls[0].textContent = 'It’s quiet now.';
+      lineEls[1].textContent = 'It doesn’t need to ask you anything else.';
+      lineEls[2].textContent = m.kind === 'deleted' ? 'It already has the question. You wrote it yourself at ' + at + ', and then you took it back.'
+        : m.kind === 'abandoned' ? 'It already has the question. You left it in the box at ' + at + ' and walked away.'
+        : m.kind === 'sent' ? 'It already has the question. You asked it at ' + at + '. It kept the way you typed it.'
+        : 'You never typed a word to it. It wrote some for you anyway.';
+    }
+
+    /* ---------- it offers to scroll for you; any touch gives it back ---------- */
+    function stopAuto(byUser) {
+      if (!S.auto) return;
+      cancelAnimationFrame(S.auto.raf);
+      S.auto = null; S.autoDone = true;
+      document.documentElement.classList.remove('hw-autoscroll');
+      hand.textContent = byUser ? 'you took it back. good. go at your own pace.' : 'it stopped. the rest is yours.';
+      sfx('handback');
+      clearTimeout(S.handT); S.handT = setTimeout(function () { hand.classList.remove('is-on'); }, 4200);
+    }
+    function startAuto() {
+      if (S.auto || S.autoDone || reduced() || document.visibilityState !== 'visible') return;
+      var r = section.getBoundingClientRect(), span = section.offsetHeight - innerHeight;
+      var y0 = window.scrollY, target = y0 + r.top + span * (PROMPT_AT + 0.01) - 0;
+      if (target - y0 < 80) { S.autoDone = true; return; }
+      S.auto = { y0: y0, y1: target, t0: performance.now(), dur: Math.min(9000, Math.max(4000, (target - y0) * 6)) };
+      document.documentElement.classList.add('hw-autoscroll');
+      hand.textContent = 'it’s scrolling for you · touch, scroll or press any key to stop';
+      hand.classList.add('is-on');
+      sfx('autoscroll');
+      (function step(now) {
+        if (!S.auto) return;
+        var a = S.auto, k = Math.min(1, (now - a.t0) / a.dur);
+        var e = k < 0.5 ? 2 * k * k : 1 - Math.pow(-2 * k + 2, 2) / 2;
+        window.scrollTo(0, a.y0 + (a.y1 - a.y0) * e);
+        if (k >= 1) { stopAuto(false); return; }
+        a.raf = requestAnimationFrame(step);
+      })(performance.now());
+    }
+    ['wheel', 'touchstart', 'keydown', 'pointerdown'].forEach(function (t) {
+      window.addEventListener(t, function () { S.idleSince = Date.now(); if (S.auto) stopAuto(true); }, { passive: true, capture: true });
+    });
+    document.addEventListener('visibilitychange', function () { if (document.hidden && S.auto) stopAuto(true); });
+
+    /* ---------- the replay ---------- */
+    function replay() {
+      if (S.replaying || S.replayed) return;
+      S.replaying = true;
+      var m = S.mat;
+      label.textContent = m.kind === 'deleted' ? '✨ Restored an unsent draft · typed at ' + hhmmss(m.at) + ' · deleted'
+        : m.kind === 'abandoned' ? '✨ Restored an unsent draft · typed at ' + hhmmss(m.at) + ' · never sent'
+        : m.kind === 'sent' ? '✨ Replaying your message · typed at ' + hhmmss(m.at) + ' · exactly as you typed it'
+        : '✨ Suggested reply · written as you';
       input.value = '';
-      form.classList.remove('has-text');
-      if (!S.sources) {
-        // what it has of you: everything said elsewhere on the page, oldest first
-        S.sources = said().filter(function (x) { return typeof x === 'string' && x.trim(); }).slice();
+      field.classList.add('is-typing');
+      fade(stage2, true);
+      box.classList.add('has-turn');
+      var steps = schedule(m.tl), i = 0;
+      function done() {
+        S.replaying = false; S.replayed = true;
+        input.value = m.text.length > input.value.length ? input.value : input.value;
+        field.classList.add('is-done');
+        setTimeout(function () {
+          after.textContent = m.kind === 'deleted' ? 'You took this back. It didn’t.'
+            : m.kind === 'abandoned' ? 'You walked away from this. It stayed with it.'
+            : m.kind === 'sent' ? 'Every pause is where you were deciding. It kept those too.'
+            : 'You didn’t say it. It said it for you, in your voice.';
+          fade(after, true);
+          sfx('reveal');
+          setTimeout(function () {
+            input.readOnly = false;
+            input.setAttribute('aria-label', 'Your message. You can change it.');
+            fade(acts, true);
+          }, reduced() ? 0 : 2200);
+        }, reduced() ? 0 : 1300);
       }
-      remember(v);
-      box.classList.add('is-talking');
-      var src = S.sources.length ? S.sources.shift() : v;
-      var fromBefore = src !== v;
-      var q = el('p', 'fin-q', v);
-      var a = el('p', 'fin-a');
-      a.appendChild(el('span', 'fin-a-t', echoOf(src)));
-      a.appendChild(el('span', 'fin-a-src mono', fromBefore ? '— you, earlier' : '— you, just now'));
-      echo.appendChild(q);
-      // keep it to the last two exchanges so it always fits the pin
-      while (echo.childNodes.length > 4) echo.removeChild(echo.firstChild);
-      setTimeout(function () {
-        echo.appendChild(a);
-        while (echo.childNodes.length > 4) echo.removeChild(echo.firstChild);
-        S.n++;
-        if (S.n >= 3) setTimeout(resolve, reduced() ? 200 : 1600);
-      }, reduced() ? 0 : 900 + rand(500));
+      if (reduced()) { input.value = steps.length ? steps[steps.length - 1][1] : m.text; done(); return; }
+      (function next() {
+        if (i >= steps.length) { done(); return; }
+        if (document.hidden) { setTimeout(next, 400); return; }
+        var st = steps[i++];
+        setTimeout(function () {
+          var prevLen = input.value.length;
+          input.value = st[1];
+          input.scrollTop = input.scrollHeight;
+          sfx('key', { del: st[1].length < prevLen });
+          next();
+        }, st[0]);
+      })();
+    }
+
+    /* ---------- your choice ---------- */
+    function choose(send) {
+      if (S.chosen || !S.replayed) return;
+      S.chosen = true;
+      var v = input.value.replace(/\s+/g, ' ').trim();
+      input.readOnly = true;
+      acts.classList.remove('is-on');
+      acts.hidden = true;
+      if (send && v) {
+        remember(v);
+        var q = el('p', 'fin-q', v);
+        reply.appendChild(q);
+        sfx('send');
+        var changed = v !== S.mat.text.replace(/\s+/g, ' ').trim();
+        setTimeout(function () {
+          reply.appendChild(el('p', 'fin-a', changed
+            ? 'You changed it before you sent it. It noticed what you changed. It kept both.'
+            : 'There. Now it’s said. It will keep it exactly as you left it — the pauses, and the part you almost didn’t.'));
+          setTimeout(resolve, reduced() ? 300 : 5200);
+        }, reduced() ? 0 : 1900);
+      } else {
+        // it un-types it, gently, and keeps it anyway
+        var t = input.value;
+        (function back() {
+          if (t.length && !reduced()) { t = t.slice(0, -Math.max(1, Math.round(t.length / 18))); input.value = t; sfx('key', { del: true }); setTimeout(back, 45); return; }
+          input.value = '';
+          reply.appendChild(el('p', 'fin-a', 'That’s all right. It will keep it until you’re ready. It is very good at waiting.'));
+          setTimeout(resolve, reduced() ? 300 : 4800);
+        })();
+      }
+    }
+    sendB.addEventListener('click', function () { choose(true); });
+    leaveB.addEventListener('click', function () { choose(false); });
+    input.addEventListener('keydown', function (ev) {
+      if (ev.key === 'Enter' && !ev.shiftKey && S.replayed && !S.chosen) { ev.preventDefault(); choose(true); }
     });
 
-    again.addEventListener('click', function (ev) {
-      ev.preventDefault();
-      try { window.scrollTo({ top: 0, behavior: reduced() ? 'auto' : 'smooth' }); } catch (e) { window.scrollTo(0, 0); }
-      var target = document.querySelector('#hero h1') || document.getElementById('hero');
-      if (target) {
-        if (!target.hasAttribute('tabindex')) target.setAttribute('tabindex', '-1');
-        try { target.focus({ preventScroll: true }); } catch (e) {}
-      }
-    });
+    /* ---------- the record ---------- */
+    function row(k, v, accent) {
+      var r = el('div', 'rec-row' + (accent ? ' is-accent' : ''));
+      r.appendChild(el('dt', 'mono', k)); r.appendChild(el('dd', null, v));
+      return r;
+    }
+    function buildRecord() {
+      var h = H(), sn = seen() || { sent: [], away: [], reversals: 0, chips: [] }, m = S.mat || chooseMaterial();
+      rec.textContent = '';
+      var head = el('p', 'rec-head mono');
+      var dt = new Date();
+      head.textContent = 'Visit record · hw-you · ' + dt.toLocaleDateString([], { month: 'short', day: 'numeric' }) + (sn.visit > 1 ? ' · visit ' + sn.visit : '');
+      var dl = el('dl', 'rec');
+      var ex = null, mx = 0, dw = sn.dwell || {};
+      Object.keys(dw).forEach(function (k) { if (k !== 'end' && k !== 'carve' && dw[k] > mx) { mx = dw[k]; ex = k; } });
+      var awayT = 0; (sn.away || []).forEach(function (a) { awayT += a.sec; });
+      dl.appendChild(row('arrived', hm(sn.arrival || Date.now()) + ' · ' + device()));
+      dl.appendChild(row('stayed', dur(elapsed())));
+      if (ex) dl.appendChild(row('slowest at', (SECTION_NAMES[ex] || ex) + ' · ' + dur(mx)));
+      dl.appendChild(row('said', sn.sent.length ? plural(sn.sent.length, 'thing') + ' · first: “' + clean(clip(sn.sent[0].text, 34)) + '”' : (sn.chips.length ? 'only what it suggested' : 'nothing')));
+      dl.appendChild(row('took back', m.kind === 'deleted' ? '“' + clean(clip(m.text, 40)) + '”' : m.kind === 'abandoned' ? 'one, left in the box' : 'nothing it could see'));
+      if (sn.hesitation) dl.appendChild(row('hesitated', Math.round(sn.hesitation.sec) + 's' + (spoils(sn.hesitation.before) && m.kind !== 'deleted' ? '' : ', at “' + clean(clip(sn.hesitation.before, 28)) + '”')));
+      dl.appendChild(row('went back up', sn.reversals ? plural(sn.reversals, 'time') : 'never'));
+      dl.appendChild(row('left the tab', sn.away.length ? plural(sn.away.length, 'time') + ' · ' + durShort(awayT) + ' away' : 'never'));
+      dl.appendChild(row('sent anywhere', 'nothing. it is all still here, on this device.', true));
+      rec.appendChild(head); rec.appendChild(dl);
+
+      var hr = new Date().getHours(), now = hm(), came = hm(sn.arrival || Date.now());
+      var f1 = el('p', 'rec-final', 'None of it left this device. It never had to. It was made here, out of you.');
+      var f2 = el('p', 'rec-final rec-last', (hr >= 22 || hr < 5)
+        ? 'It’s ' + now + '. Go to sleep. See you at ' + came + ' tomorrow. It will keep your place.'
+        : 'Same time tomorrow, then — ' + came + '. It will keep your place.');
+      rec.appendChild(f1); rec.appendChild(f2);
+
+      var tail = el('div', 'rec-tail');
+      tail.appendChild(el('p', 'fin-legal mono', '✨ Thanks for chatting with Heartwood.'));
+      var links = el('div', 'rec-links');
+      var again = el('a', 'fin-again mono', 'begin again ↑'); again.href = '#hero';
+      var forget = el('button', 'fin-forget mono', 'Forget this visit'); forget.type = 'button';
+      var onward = el('a', 'fin-onward mono', 'one network is still up ↓'); onward.href = '#exit';
+      links.appendChild(onward); links.appendChild(again); links.appendChild(forget);
+      tail.appendChild(links);
+      rec.appendChild(tail);
+      again.addEventListener('click', function (ev) {
+        ev.preventDefault();
+        try { window.scrollTo({ top: 0, behavior: reduced() ? 'auto' : 'smooth' }); } catch (e) { window.scrollTo(0, 0); }
+        var target = document.querySelector('#hero h1') || document.getElementById('hero');
+        if (target) { if (!target.hasAttribute('tabindex')) target.setAttribute('tabindex', '-1'); try { target.focus({ preventScroll: true }); } catch (e) {} }
+      });
+      onward.addEventListener('click', function (ev) {
+        var x = document.getElementById('exit'); if (!x) return;
+        ev.preventDefault();
+        try { x.scrollIntoView({ behavior: reduced() ? 'auto' : 'smooth', block: 'start' }); } catch (e) { x.scrollIntoView(); }
+      });
+      forget.addEventListener('click', function () {
+        var hh = H(); try { if (hh && hh.memory) hh.memory.forget(); } catch (e) {}
+        forget.textContent = 'Forgotten — this browser no longer remembers you';
+        forget.disabled = true;
+      });
+    }
 
     function resolve() {
       if (S.resolved) return;
       S.resolved = true;
-      input.readOnly = true;
-      input.setAttribute('aria-disabled', 'true');
-      input.placeholder = '';
-      form.classList.add('is-closed');
-      if (document.activeElement === input) input.blur();
-      final.textContent = S.n
-        ? 'There. That is everything it had to say. It learned all of it from you.'
-        : 'You didn’t ask. It answered anyway. It always had your voice ready.';
-      tail.hidden = false;
-      void tail.offsetWidth;
-      tail.classList.add('is-on');
+      if (S.auto) stopAuto(false);
+      var sn = seen(); if (sn) sn.reachedEnd = true;
+      var h = H(); try { if (h && h.memory) h.memory.save(); } catch (e) {}
+      if (!S.mat) S.mat = chooseMaterial();
+      buildRecord();
+      box.classList.add('is-resolved');
+      lines.hidden = true;
+      stage2.hidden = true;
+      fade(rec, true);
+      sfx('resolve');
       if (!S.finaleSent) { S.finaleSent = true; emit('finale'); }
+    }
+
+    /* ---------- silence before it: no whispers, no toasts ---------- */
+    var hushOn = false, carveSec = document.getElementById('carve'), exitSec = document.getElementById('exit');
+    function setHush(v) {
+      var h = H(); if (!h || hushOn === v) return;
+      hushOn = v; h.hush = v;
+      if (v && h.hushToasts) h.hushToasts();
     }
 
     function update() {
       var p = progress(section);
+      var r = section.getBoundingClientRect();
+      var inEnd = r.top <= 1 && r.bottom >= innerHeight * 0.5;
+      var cp = carveSec ? progress(carveSec) : 0, cr = carveSec ? carveSec.getBoundingClientRect() : null;
+      var inCarveLate = cr && cr.top <= 1 && cr.bottom > innerHeight * 0.5 && cp > 0.6;
+      var xr = exitSec ? exitSec.getBoundingClientRect() : null;
+      var inExit = xr && xr.top < innerHeight * 0.5 && xr.bottom > innerHeight * 0.5;
+      setHush(inCarveLate || inEnd || (S.resolved && inExit));
+
+      if (p > 0 && !S.mat) writeLines();
       var n = 0;
       for (var i = 0; i < END_AT.length; i++) if (p >= END_AT[i]) n = i + 1;
-      if (n > S.lines) {
-        for (var j = S.lines; j < n; j++) lineEls[j].classList.add('is-on');
-        S.lines = n;
-      }
+      if (n > S.lines) { if (!S.mat) writeLines(); for (var j = S.lines; j < n; j++) lineEls[j].classList.add('is-on'); S.lines = n; }
       if (!S.prompt && p >= PROMPT_AT) {
         S.prompt = true;
-        form.hidden = false;
-        void form.offsetWidth;
-        form.classList.add('is-on');
+        if (!S.mat) writeLines();
         box.classList.add('has-prompt');
+        replay();
       }
-      if (p >= RESOLVE_AT && !S.resolved && S.prompt) resolve();
+      if (p >= RESOLVE_AT && !S.resolved) {
+        if (S.replayed && !S.chosen) { S.chosen = true; acts.hidden = true; reply.appendChild(el('p', 'fin-a', 'You didn’t choose. It will hold it for you.')); }
+        resolve();
+      }
     }
+    // the offer to carry them: only when they've arrived and let go of the wheel
+    setInterval(function () {
+      if (S.auto || S.autoDone || S.prompt) return;
+      var r = section.getBoundingClientRect();
+      if (r.top <= 2 && r.bottom > innerHeight && Date.now() - S.idleSince > 2600 && progress(section) > 0.012) startAuto();
+    }, 400);
     update();
     return { update: update };
   }

@@ -23,7 +23,7 @@
     8: [220.0, 277.18, 329.63],
     16: [220.0, 261.63, 329.63],
     24: [185.0, 220.0, 261.63],
-    30: [110.0, 164.81, 220.0],
+    30: [220.0, 329.63, 440.0],
     32: [220.0, 220.0, 220.0]
   };
   var PENTA = [523.25, 587.33, 659.25, 783.99, 880.0, 1046.5];
@@ -84,10 +84,10 @@
   function buildBed() {
     var b = { out: ctx.createGain(), sub: ctx.createGain(), pad: ctx.createGain(), fan: ctx.createGain(), oscs: [], subs: [] };
     b.out.gain.value = 0; b.out.connect(bus);
-    b.sub.gain.value = 0.05; b.sub.connect(b.out);
+    b.sub.gain.value = 0.028; b.sub.connect(b.out);
     var lp = ctx.createBiquadFilter(); lp.type = "lowpass"; lp.frequency.value = 1500; lp.Q.value = 0.4;
     b.lp = lp;
-    b.pad.gain.value = 0.045; lp.connect(b.pad); b.pad.connect(b.out);
+    b.pad.gain.value = 0.06; lp.connect(b.pad); b.pad.connect(b.out);
     [55, 110.4].forEach(function (f) { var o = ctx.createOscillator(); o.type = "sine"; o.frequency.value = f; o.connect(b.sub); o.start(); b.subs.push(o); });
     var ch = CHORDS[mask()];
     ch.forEach(function (f, i) {
@@ -119,7 +119,7 @@
     ramp(bed.lp.frequency, 1500 - m * 25, secs);
     // the fan gets audible as it gets quieter everywhere else (s16–s24), gone in the terminal
     ramp(bed.fan.gain, m >= 30 ? 0.0 : (m >= 16 ? 0.02 : 0.010), secs);
-    ramp(bed.pad.gain, m >= 30 ? 0.03 : 0.045, secs);
+    ramp(bed.pad.gain, m >= 30 ? 0.04 : 0.06, secs);
     ramp(bed.out.gain, bedTarget(), Math.min(secs, 2));
   }
 
@@ -175,7 +175,7 @@
   // one recognisable cue per event
   var CUES = {
     // the portal's switch: a short "connected" chime so the visitor knows sound works
-    test: function () { bell(880, 0, 0.5, 0.11); bell(1318.5, 0.14, 0.9, 0.10); },
+    test: function () { bell(880, 0.05, 0.6, 0.16); bell(1318.5, 0.2, 1.0, 0.15); },
     connect: function () { bell(659.25, 0, 0.5, 0.09); bell(880, 0.12, 0.5, 0.09); bell(1318.5, 0.24, 1.1, 0.09); },
     // product UI pop for toasts, fades out of the product as the mask narrows
     toast: function () {
@@ -323,7 +323,7 @@
     ramp(master.gain, MASTER, 2);
     if (US.state !== "portal" && US.state !== "manifest" && US.state !== "disconnected") bedForMask(0.5);
     if (mask() >= 32 && (US.state === "term" || US.state === "last" || US.state === "coda")) startS32();
-    if (opt && opt.test) { var p = master.gain; ramp(p, MASTER, 0.08); cue("test"); }
+    if (opt && opt.test) { ramp(master.gain, MASTER, 0.04); cue("test"); }
     return true;
   }
   function disable() {

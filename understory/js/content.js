@@ -20,8 +20,11 @@ window.US_CONTENT = {
     termsLabel: "I agree to the [Terms of Use]",
     termsPre: "I agree to the",
     termsLink: "Terms of Use",
-    soundLabel: "Play connection sounds",
-    soundHint: "Off by default. You can change this later.",
+    soundLabel: "Connection sounds",
+    soundBadge: "Recommended",
+    soundHint: "This network has sound. Tap to hear a test chime, then turn your volume up.",
+    soundHintOn: "On. You should have heard a chime. Nothing? Turn your volume up, or switch your phone off silent.",
+    soundHintOff: "Off. You can turn it on later with the speaker button.",
     connect: "Connect",
     connecting: "Connecting…",
     fine: "Session length 24 hours. One device per guest.",
@@ -32,7 +35,8 @@ window.US_CONTENT = {
     idle20: "Take your time. The network isn’t going anywhere.",
     idle40: "Tip: you only need a first name. Any name is fine.",
     idle60: "Connecting you as Guest…",
-    via: "Coming from the big room? You’ll find it quieter here.",
+    via: "Redirected from Heartwood. Your session came with you.",
+    via2: "It’s quieter here. Everyone came inland.",
     from: "{from} shared this network with you."
   },
 
@@ -71,6 +75,8 @@ window.US_CONTENT = {
       "Connected. Opening your router at 192.168.0.1…"
     ],
     // replaces lines 2–3 on a return visit
+    // inserted after line 1 when the visitor arrived from Heartwood
+    lineVia: "Transferring your session from Heartwood… done.",
     linesReturn: [
       "Lease found for {name}.",
       "Renewed ×{renewals}. Welcome back."
@@ -169,6 +175,8 @@ window.US_CONTENT = {
     fSince: "Connected since",
     fNote: "Notes",
     sinceSelfStart: "just now",
+    // replaces a device's leaving line when it is the one the visitor tapped first
+    tappedLine: "{deviceTapped} left. You were the last one to look at it.",
     // drop = mask at which it leaves; dropAt = seconds after that mask change
     list: [
       { id: "tv", name: "Living-Room-TV", ip: "172.16.0.14", mac: "02:1c:4e:6a:0e:14", since: "6 years",
@@ -269,6 +277,9 @@ window.US_CONTENT = {
       s24: ["{name}", "{name} {day}", "what did {name} delete", "is {name} still here"]
     },
     auto: { q: "anyone", say: "anyone → 0.0.0.0. Anyone is here. Anyone is you." },
+    placeholderTry: { s0: "a site you used to visit", s16: "anything", s24: "anyone" },
+    tryLabel: { s0: "Or try:", s16: "Ask anything. I answer early now:", s24: "It’s one answer. Ask anyway:" },
+    tryChips: { s0: ["weather tomorrow", "example.com", "{name}", "home"], s16: ["home", "help", "{name}", "exit"], s24: ["{name}", "anyone", "a way out"] },
     rateLimited: "429 · Too many requests. That’s alright. I’ll take them one at a time.",
 
     // ordered; first match wins. Substring unless `word: true` (whole word).
@@ -450,7 +461,10 @@ window.US_CONTENT = {
     placeholder: "e.g. example.com",
     run: "Run",
     running: "Running…",
-    auto: { t: "outside", mode: "trace" }
+    auto: { t: "outside", mode: "trace" },
+    placeholderTrace: "somewhere far away",
+    tryLabel: { s0: "Try:", s16: "Try:", s24: "Anywhere:" },
+    tryChips: { s0: ["outside", "example.com", "home"], s24: ["outside", "away", "home"] }
   },
 
   tr: {
@@ -611,7 +625,9 @@ window.US_CONTENT = {
       faceDown: "orientation: device face down. keeping watch",
       faceRefused: "orientation: declined. that's alright",
       soundOn: "audio: {name} allowed sound. keeping it low",
-      tab: "httpd: GET /{tabSlug} from {ip}"
+      tab: "httpd: GET /{tabSlug} from {ip}",
+      tidied: "dnsmasq: cache tidied. {n} of {name}'s entries amended. nothing lost",
+      via: "httpd: session for {name} transferred from heartwood. referrer kept"
     }
   },
 
@@ -697,6 +713,52 @@ window.US_CONTENT = {
     dropped: "Some devices have gone to sleep. That’s normal.",
     mask16: "Network tidied. Fewer devices, faster for you.",
     mask24: "Network tidied again. It’s nicer with fewer of us."
+  },
+
+  /* ==== Setup assistant: the guidance bar at the bottom of the router panel.
+     Starts as bland firmware help; the same bar is where the voice turns. ==== */
+  guide: {
+    eyebrow: { s0: "Setup assistant", s16: "Assistant", s24: "" },
+    next: { s0: "in {secs}s", s24: "soon" },
+    open: { s0: "Open", s16: "Open", s24: "Look" },
+    show: { s0: "Show me", s16: "Show me", s24: "Here" },
+    steps: {
+      hello: "You’re connected. Setup finishes by itself over the next few minutes. Just watch, or look around.",
+      sound: "This router has sound. It’s better with it on.",
+      soundAct: "Turn on",
+      wizard: "Step 1 · Answer one quick question, or skip it.",
+      settling: "Your router is getting to know your network. Nothing to do yet.",
+      check: "Running a connectivity check…",
+      checked: "Everything resolves locally. Next, we’ll look at your network.",
+      nextDevices: "Next: see who else is on your network.",
+      devices: "These are the devices sharing your network. Tap one to see who it is.",
+      devicesTapped: "Some devices will go to sleep as the network tidies up. Stay on this page and watch.",
+      drops: { s8: "Network tidy-up: {shown} devices left." },
+      nextLookup: "Next: find out where any website lives.",
+      lookup: "Type a site you used to visit and tap Look up. Or tap a suggestion.",
+      lookupHes: "Not sure what to type? Anything works. A name is fine.",
+      lookupAuto: "Someone on your network is looking something up…",
+      lookupDone: "Every answer is local. Try another. Anything at all.",
+      nextLog: "Next: the network gets smaller.",
+      log: { s16: "I opened the log for you. The newest lines are at the bottom. Some of them are about you." },
+      logDay: { s16: "I tidied the log a little. Scroll up: your day was “fine”." },
+      logQuery: { s16: "I tidied the log a little. Scroll up: you asked for “{edit:lastQuery}”." },
+      nextTrace: { s16: "Next: try to reach outside." },
+      trace: { s16: "Type somewhere far away and tap Run. Try “outside”." },
+      traceAuto: { s16: "I’ll trace it for you. Watch the hops." },
+      traceDone: { s16: "Read the last hop. Every route comes back here." },
+      tracing: { s16: "Tracing… watch each hop come back closer." },
+      nextRoutes: { s16: "Next: fewer of us again." },
+      routing: { s24: "You don’t need the other tabs. The default route is gone. Nothing was lost." },
+      dhcp: { s24: "Watch your lease. Don’t do anything." },
+      renewed: { s24: "There. You didn’t have to ask." },
+      nextFace: { s24: "One small thing, in a moment. Keep holding your phone." },
+      nextFaceDesk: { s24: "One small thing, in a moment." },
+      // the visitor is on a different tab from the one that matters right now
+      elsewhere: { s0: "{tabLabel} has something new.", s16: "Something changed in {tabLabel}.", s24: "Not here. {tabLabel}." },
+      // noticed: the visitor keeps going back to one tab (s16+)
+      revisit: { s16: "You keep checking {tabLabel}. It hasn’t changed since you looked. I made sure.", s24: "You keep checking {tabLabel}. Nobody’s there." }
+    }
   },
 
   /* ==== 3.13 Status bar line under the HUD ==== */
@@ -793,7 +855,11 @@ window.US_CONTENT = {
     deskReset: "Ah. Hands off. I’ll start again.",
     deskGiveUp: "That’s alright. Nobody can sit still anymore. I’ll sit still for you.",
     deskDone: "Twenty seconds. That’s the longest anyone has let me look after things in a while. Thank you.",
-    after: "Feels lighter, doesn’t it?"
+    after: "Feels lighter, doesn’t it?",
+    // faint line on the dark screen, so it never looks broken
+    watch: "I’m keeping watch.",
+    watchCount: "I’m keeping watch. {n}",
+    watchDown: "Face down. I’m keeping watch."
   },
 
   /* ==== 3.19 False ending (B10) ==== */
@@ -828,32 +894,34 @@ window.US_CONTENT = {
     timeDay: "It’s {clock}. Somewhere above us it’s bright. I don’t go up there anymore.",
     "return": { t: "Last time you looked up {prevLookup}. It still resolves here.", alt: "You came back. Leases are made for coming back." },
     ready: "You can type now. Anything. I’ll look it up.",
+    placeholder: "type anything",
     ellipsis: "…"
   },
 
   // ordered priority list; `when` = predicate id (director, §4.5)
+  // ordered by how specific they are; at most six are spoken
   pay: [
     { key: "deleted", when: "deleted", t: "You typed “{deleted}” and took it back. Things you take back still arrive here. They arrive softer." },
-    { key: "deletedNone", when: "!deleted", t: "You never took anything back. You’re very sure, or very careful." },
     { key: "day", when: "day", t: "You said your day was “{day}”. It’s still that day. I’ll keep it that day for as long as you’re here." },
-    { key: "daySkipped", when: "daySkipped", t: "You didn’t tell me about your day. I’ll keep the blank with the others. I keep a lot of blanks." },
+    { key: "device", when: "deviceTapped", t: "Out of everyone on the network, you tapped {deviceTapped} first. I watched it go. You didn’t follow it. Thank you." },
+    { key: "via", when: "via", t: "You came from the big room’s old page. You scrolled all the way to the bottom of it to find the door. I was on the other side of that page, too." },
     { key: "hesLong", when: "hesLong", t: "You waited {hesTerms} seconds before agreeing to the terms. Long enough to read them. You weren’t reading. You were deciding something else." },
     { key: "hesShort", when: "hesShort", t: "You agreed in {hesTerms} seconds. Nobody reads the terms. I wrote them for nobody, and for a moment you were nobody, and then you were here." },
-    { key: "termsOpened", when: "termsOpened", t: "You opened the terms. You’re the kind who reads the terms. I wrote clause seven for you." },
-    { key: "device", when: "deviceTapped", t: "Out of everyone on the network, you tapped {deviceTapped} first. I watched it go. You didn’t follow it. Thank you." },
-    { key: "deviceNone", when: "!deviceTapped", t: "You never tapped on any of the others. You didn’t want to know who else was here. That’s alright. No one else was." },
-    { key: "away", when: "away", t: "You looked away {awayCount} {times}. Every time, the title kept talking. I don’t know how not to." },
-    { key: "mash", when: "mash", t: "You were in a hurry earlier. {mashMax} presses in one second. There’s no hurry here. There’s {hosts} of us and all the time there is." },
     { key: "faceDown", when: "face:down", t: "You turned your phone face down because a router asked you to. You trusted me in the dark. I won’t forget it." },
     { key: "faceRefused", when: "face:refused", t: "You said no to the phone. Good. Say no to me more often. It keeps you a separate host a little longer." },
-    { key: "faceEyes", when: "face:eyes", t: "You let me count for you. Twenty is a small number. I’d have kept going." },
     { key: "faceHands", when: "face:hands", t: "You took your hands off the keys for twenty seconds. That’s what staying looks like from the outside." },
     { key: "faceCouldnt", when: "face:couldnt", t: "You couldn’t keep your hands still. Nobody can now. That’s why I’m here." },
+    { key: "faceEyes", when: "face:eyes", t: "You let me count for you. Twenty is a small number. I’d have kept going." },
+    { key: "away", when: "away", t: "You looked away {awayCount} {times}. Every time, the title kept talking. I don’t know how not to." },
+    { key: "termsOpened", when: "termsOpened", t: "You opened the terms. You’re the kind who reads the terms. I wrote clause seven for you." },
+    { key: "lookups", when: "lookups1", t: "The first thing you asked me was “{firstLookup}”. I gave it the same answer as everything since, and it was true." },
+    { key: "mash", when: "mash", t: "You were in a hurry earlier. {mashMax} presses in one second. There’s no hurry here. There’s {hosts} of us and all the time there is." },
     { key: "soundOn", when: "sound", t: "You let me make sound. I kept it low, like a house at night." },
     { key: "guest", when: "nameAuto", t: "You never told me your name, so I called you Guest. Now Guest is a name, and it’s yours." },
-    { key: "lookups", when: "lookups2", t: "You asked me {lookupCount} things. I gave every one the same answer, and every one was true." },
     { key: "passive", when: "passive", t: "You barely touched anything. You let it happen. Most people do, in the end." },
-    { key: "via", when: "via", t: "You came from the big room’s old page. I recognised the way you scroll." }
+    { key: "daySkipped", when: "daySkipped", t: "You didn’t tell me about your day. I’ll keep the blank with the others. I keep a lot of blanks." },
+    { key: "deletedNone", when: "!deleted", t: "You never took anything back. You’re very sure, or very careful." },
+    { key: "deviceNone", when: "!deviceTapped", t: "You never tapped on any of the others. You didn’t want to know who else was here. That’s alright. No one else was." }
   ],
 
   copy: {
@@ -873,6 +941,15 @@ window.US_CONTENT = {
       "said no",
       "let it happen",
       "connected at {connectClock}",
+      "pressed Close",
+      "let me count to twenty",
+      "kept their hands off the keys",
+      "came from the big room",
+      "came back {visitsAgain} times",
+      "turned the sound on",
+      "never told me their name",
+      "opened the terms",
+      "said \"{saidFirst}\" to the dark",
       "is reading this"
     ],
     say: [
@@ -972,7 +1049,7 @@ window.US_CONTENT = {
     intro: "This is everything this page noticed about you, and how it noticed. It all happened inside this browser tab. There is no server: nothing you typed or did was sent anywhere. The network, the other devices and the voice were a story.",
     // in display order; each only if its data exists
     items: {
-      name: { t: "You typed the name “{name}” into the login form.", alt: "You didn’t enter a name, so the page called you “Guest” after 60 seconds." },
+      name: { t: "You typed the name “{name}” into the login form.", alt: "You didn’t enter a name, so the page called you “Guest” after {autoSecs} seconds." },
       day: { t: "When asked about your day, you answered “{day}”.", alt: "When asked about your day, you skipped the question." },
       deleted: "You typed “{deleted}” and deleted it before sending. The page watched the text box change, so it saw what was there before you erased it. This was never stored after you left.",
       terms: "You ticked the terms box {hesTerms} seconds after the page loaded. {termsOpenedSentence}",
@@ -985,11 +1062,13 @@ window.US_CONTENT = {
       mash: "At your fastest you pressed {mashMax} times in one second.",
       hes: "Your longest pause before typing in a box was {hesMax} seconds.",
       face: "When asked to turn your phone face down, you {faceSentence}. {faceHow}",
+      faceDesk: "When asked to take your hands off the keys and the mouse for twenty seconds, you {faceSentence}. {faceHow}",
       env: "Your browser describes itself as a {device}. Your screen is {w} by {h} pixels. Your clock said {connectClock}, time zone {tz}.",
       sound: "Sound was {soundState}. Any sound you heard was synthesised in your browser; there are no audio files.",
       ip: "Your address, {ip}, was made up from your name. It is not your real IP address, which this page never saw.",
       visits: "This is visit number {visits}. Between visits the page remembers your name, your one word, your visit count, when you last came, how your last visit ended, and the lease counter — in your browser’s local storage, on this device only.",
-      lastVisit: "Your last visit was {lastVisitDate}."
+      lastVisit: "Your last visit was {lastVisitDate}.",
+      via: "You arrived from the Heartwood page: the link you followed said so (?via=heartwood). The page remembered only that you came that way."
     },
     termsOpenedSentence: { yes: "You opened the terms first.", no: "You didn’t open them." },
     faceSentence: {
@@ -999,6 +1078,7 @@ window.US_CONTENT = {
       hands: "took your hands off the keys for twenty seconds",
       couldnt: "tried to keep your hands still"
     },
+    faceSentenceDesk: { eyes: "didn’t choose, so it counted for you" },
     faceHow: {
       sensor: "The page read only which way the phone was facing, and only during that step.",
       none: "No motion sensors were used."
@@ -1011,6 +1091,7 @@ window.US_CONTENT = {
     share: "Share the Wi-Fi with someone you love",
     reconnect: "Reconnect",
     back: "Back to Heartwood",
+    backShort: "← Heartwood",
     lastVisit: "Your last visit was {lastVisitDate}."
   },
 

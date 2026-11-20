@@ -139,10 +139,7 @@
   var dirty = true;
 
   var scrollD = 0, peak = 0, floor = pin !== null ? pin : 0, bumps = 0;
-  if (pin === null && prevVisit && +prevVisit.n > 0) {
-    // a return visit opens already ruined: it kept your place
-    floor = Math.min(0.66, 0.4 + 0.07 * (Math.min(4, +prevVisit.n) - 1) + (prevVisit.end ? 0.12 : 0));
-  }
+
   var activeTime = 0, lastFrame = 0;
   var emittedD = -1, emittedStage = 0;
   var lastInput = now(), idleFired = 0;
@@ -177,6 +174,7 @@
     sent: [],                 // chat.js: typed messages {text, at}
     chips: [],                // chat.js: suggestion chips they let speak for them
     deepest: 'hero',
+    dwell: {},                // seconds spent with each section under the middle of the screen
     reachedEnd: false
   };
   var forgotten = false;
@@ -207,6 +205,10 @@
     get: memRead
   };
   HW.memory.save();
+  if (pin === null && prevVisit && +prevVisit.n > 0) {
+    // a return visit opens already ruined: it kept your place
+    floor = Math.min(0.66, 0.4 + 0.07 * (Math.min(4, +prevVisit.n) - 1) + (prevVisit.end ? 0.12 : 0));
+  }
 
     /* ---------------------------------------------------------
      1. Section geometry (cached; recomputed only when layout changes)
@@ -725,7 +727,7 @@
   var awayTimer = 0, awayTick = 0, awayTitle = '';
   function awayLine() {
     var s = HW.stage;
-    if (s <= 0) return null;
+    if (s <= 0) return SEEN.sent.length ? '(1) Heartwood — new message' : null;
     if (s <= 2) return AWAY_SOFT[Math.min(1, awayTick > 2 ? 1 : 0)];
     var k = awayTick % AWAY_LATE.length, l = AWAY_LATE[k];
     if (l === '{said}') { var sd = lastSaid(); l = sd ? 'you were saying “' + sd + '”' : 'it’s listening to the quiet'; }
@@ -738,7 +740,7 @@
   function awayStep() {
     awayTick++;
     var sec = (now() - hiddenAt) / 1000;
-    if (HW.stage >= 1 && (awayTick === 1 || awayTick % 2 === 0)) SEEN.awayCount = Math.min(9, SEEN.awayCount + 1);
+    if ((HW.stage >= 1 || SEEN.sent.length) && (awayTick === 1 || awayTick % 2 === 0)) SEEN.awayCount = Math.min(9, SEEN.awayCount + 1);
     awayTitle = awayLine() || '';
     setTitle();
     HW.emit('away', { sec: sec, count: SEEN.awayCount });
@@ -800,7 +802,11 @@
     if (dirty) measure();
 
     // visible time only (hidden tabs don't advance the clock)
-    if (lastFrame) activeTime += Math.min(0.25, (tnow - lastFrame) / 1000);
+    if (lastFrame) {
+      var dtf = Math.min(0.25, (tnow - lastFrame) / 1000);
+      activeTime += dtf;
+      SEEN.dwell[HW.where] = (SEEN.dwell[HW.where] || 0) + dtf;
+    }
     lastFrame = tnow;
 
     scrollD = computeScrollD();
