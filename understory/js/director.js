@@ -10,7 +10,7 @@
   var prior = W.US || {};
   var US = W.US = prior;
 
-  /* ------------------------------------------------------------------ params */
+  /* ==== params */
   var Q;
   try { Q = new URLSearchParams(W.location.search); } catch (e) { Q = { get: function () { return null; }, has: function () { return false; } }; }
   function qnum(k, d) { var n = parseFloat(Q.get(k)); return isFinite(n) ? n : d; }
@@ -33,7 +33,7 @@
   function $(id) { return D.getElementById(id); }
   function nowMs() { return (W.performance && performance.now) ? performance.now() : Date.now(); }
 
-  /* -------------------------------------------------------------- constants */
+  /* ==== constants */
   var BEATS = [
     { id: 'b01', state: 'portal', T: 0 },
     { id: 'b02', state: 'handshake', T: 30 },
@@ -64,7 +64,7 @@
   var IDLE_STATES = { panel: 1, term: 1 };
   var STORE_KEY = 'understory:v2';
 
-  /* -------------------------------------------------------------- event bus */
+  /* ==== event bus */
   var handlers = {};
   US.on = function (evt, fn) { if (typeof fn !== 'function') return fn; (handlers[evt] = handlers[evt] || []).push(fn); return fn; };
   US.off = function (evt, fn) { var a = handlers[evt]; if (!a) return; var i = a.indexOf(fn); if (i >= 0) a.splice(i, 1); };
@@ -76,7 +76,7 @@
     });
   };
 
-  /* ------------------------------------------------------------------ clocks */
+  /* ==== clocks */
   var clock = { T: 0, P: 0, last: nowMs(), running: false, stopped: false, hidden: false };
   var loadMs = nowMs();
   var connectP = null, connected = false;
@@ -100,7 +100,7 @@
   US.sinceConnect = function () { return connectP == null ? 0 : Math.max(0, clock.P - connectP); };
   US.connected = function () { return connected; };
 
-  /* ----------------------------------------------------- single scheduler */
+  /* ==== single scheduler */
   var timers = [], scheds = [], seq = 0;
   US.after = function (ms, fn) {
     var id = ++seq;
@@ -155,7 +155,7 @@
     }
   }
 
-  /* ------------------------------------------------------------------- holds */
+  /* ==== holds */
   var holds = {};
   US.hold = function (reason, maxSec) {
     reason = String(reason || 'hold');
@@ -180,7 +180,7 @@
   var lastSenseP = -99, typingUsed = {};
   function typingNow() { return clock.P - lastSenseP < 3; }
 
-  /* ------------------------------------------------------------------ memory */
+  /* ==== memory */
   var mem;
   function freshMemory() {
     return {
@@ -262,7 +262,7 @@
       mem.firstVisit = st.firstVisit || Date.now();
       mem.lastVisit = st.lastVisit;
       mem.lastEnd = st.lastEnd;
-      mem.renewals = +st.renewals || 0;
+      mem.renewals = Math.max(1, +st.renewals || 0);   // the lease that was kept for them has been renewed at least once
       if (st.day) mem.prevDay = st.day;
       if (st.prevLookup) mem.prevLookup = st.prevLookup;
       if (st.name) { mem.name = st.name; mem.nameAuto = !!st.nameAuto; }
@@ -274,7 +274,7 @@
   US.isReturn = function () { return (mem.visits | 0) >= 2; };
   US.prev = function (k) { return prevInfo[k]; };
 
-  /* ---------------------------------------------------------------- identity */
+  /* ==== identity */
   var ids = { a: 1, b: 1, c: 5, h: 0 };
   function fnv(str) {
     var h = 0x811c9dc5;
@@ -322,7 +322,7 @@
     return '10.' + ids.a + '.' + ids.b + '.1';
   };
 
-  /* ------------------------------------------------------- name cleaning */
+  /* ==== name cleaning */
   US.cleanName = function (raw) {
     var s = String(raw == null ? '' : raw).replace(/\s+/g, ' ').trim();
     if (!s) return '';
@@ -331,28 +331,10 @@
     if (!s) return '';
     s = s.slice(0, 24);
     s = s.charAt(0).toLocaleUpperCase() + s.slice(1);
-    var blocked = false;
-    try {
-      var f = (US.sense && (US.sense.cleanName || US.sense.isBlocked || US.sense.blocked)) || (US.tools && US.tools.cleanName);
-      if (US.sense && typeof US.sense.cleanName === 'function') { var r = US.sense.cleanName(s); if (typeof r === 'string') return r || 'Guest'; }
-      else if (US.sense && typeof US.sense.isBlocked === 'function') blocked = !!US.sense.isBlocked(s);
-      else if (US.sense && typeof US.sense.blockedName === 'function') blocked = !!US.sense.blockedName(s);
-      else if (typeof f === 'function') { var r2 = f(s); if (typeof r2 === 'string') return r2 || 'Guest'; blocked = !!r2; }
-      else blocked = localBlocked(s);
-    } catch (e) { blocked = localBlocked(s); }
-    return blocked ? 'Guest' : s;
+    return (US.sense.isBlocked && US.sense.isBlocked(s)) ? 'Guest' : s;   // blocklist lives in sense.js
   };
-  function localBlocked(s) {
-    var nb = (US.content && US.content.nameBlock) || {};
-    var n = String(s).toLowerCase().replace(/0/g, 'o').replace(/1/g, 'i').replace(/3/g, 'e').replace(/4/g, 'a')
-      .replace(/5/g, 's').replace(/7/g, 't').replace(/@/g, 'a').replace(/\$/g, 's').replace(/[^a-z]/g, '');
-    if (!n) return false;
-    var c = nb.contains || [], x = nb.exact || [];
-    for (var i = 0; i < c.length; i++) if (n.indexOf(c[i]) >= 0) return true;
-    return x.indexOf(n) >= 0;
-  }
 
-  /* ---------------------------------------------------------- content access */
+  /* ==== content access */
   US.content = W.US_CONTENT || {};
   function isStaged(v) {
     if (!v || typeof v !== 'object' || Array.isArray(v)) return false;
@@ -427,7 +409,7 @@
     return null;
   };
 
-  /* -------------------------------------------------------------- formatting */
+  /* ==== formatting */
   var SMALL = ['zero', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten', 'eleven', 'twelve',
     'thirteen', 'fourteen', 'fifteen', 'sixteen', 'seventeen', 'eighteen', 'nineteen', 'twenty'];
   function words(n) { return n <= 20 ? SMALL[n] : String(n); }
@@ -561,10 +543,10 @@
       if (v == null || v === '' || (typeof v === 'number' && !isFinite(v))) { bad = true; return ''; }
       return String(v);
     });
-    return bad ? null : out;
+    return bad ? null : out.replace(/(^|[^\d.,])1 times\b/g, '$11 time');   // "Renewed {renewals} times" with 1
   };
 
-  /* -------------------------------------------------------------- predicates */
+  /* ==== predicates */
   US.when = function (pred) {
     pred = String(pred || '');
     if (pred.indexOf('face:') === 0) return mem.faceOutcome === pred.slice(5);
@@ -592,7 +574,7 @@
   function termsAuto() { return !!(mem.termsAuto || mem.hesTermsAuto); }
   US.termsAuto = termsAuto;
 
-  /* ------------------------------------------------------------- DOM helpers */
+  /* ==== DOM helpers */
   var html = D.documentElement;
   function setText(el, text) { if (el && text != null && el.textContent !== text) el.textContent = text; }
   US.setText = function (id, text) { var el = typeof id === 'string' ? $(id) : id; if (!el) { warn('el:' + id, 'missing element #' + id); return; } setText(el, text); };
@@ -632,7 +614,7 @@
     }
   };
 
-  /* ------------------------------------------------------------ state machine */
+  /* ==== state machine */
   var manifestBase = null;
   US.setState = function (state, opt) {
     opt = opt || {};
@@ -721,7 +703,7 @@
     } catch (e) { W.location.reload(); }
   };
 
-  /* -------------------------------------------------------------- mask dial */
+  /* ==== mask dial */
   var hudAnim = null, maskLineTimer = null;
   function setMask(m, opt) {
     opt = opt || {};
@@ -782,7 +764,7 @@
     setText(el, grp(v));
   }
 
-  /* ------------------------------------------------------------------ toasts */
+  /* ==== toasts */
   var lastToast = { text: '', at: -99 };
   US.toast = function (text) {
     if (text == null || text === '') return;
@@ -822,7 +804,7 @@
     setText($('a11y-live'), a11yQ.shift());
   }
 
-  /* ----------------------------------------------------------------- titles */
+  /* ==== titles */
   var baseTitle = D.title;
   var awayTitleIdx = 0, awayTitleAt = 0;
   function updateTitle() {
@@ -849,7 +831,7 @@
     if (t) D.title = t;
   }
 
-  /* ------------------------------------------------------------------- tabs */
+  /* ==== tabs */
   var pendingTab = null;
   US.tab = function (slug, opt) {
     opt = opt || {};
@@ -885,7 +867,7 @@
     }
   }
 
-  /* ------------------------------------------------------------------ sound */
+  /* ==== sound */
   US.setSound = function (on) {
     on = !!on;
     try {
@@ -900,8 +882,8 @@
     if (changed || on) US.emit('sound', { on: on });
   };
 
-  /* ------------------------------------------------------------------- input */
-  var lastInputP = 0, idleStage = 0, downs = [], lastMashEmit = -1e9, lastMashSay = -1e9, lastNoticeP = -1e9;
+  /* ==== input */
+  var lastInputP = 0, idleStage = 0, downs = [], lastMashSay = -1e9, lastNoticeP = -1e9;
   function currentIdle() { return connected && !clock.stopped ? Math.max(0, clock.P - lastInputP) : 0; }
   US.input = function (kind) {
     kind = kind || 'key';
@@ -918,15 +900,13 @@
       downs.push(t);
       while (downs.length && t - downs[0] > 1000) downs.shift();
       var rate = downs.length;
-      if (rate > (mem.mashMax | 0)) mem.mashMax = rate;
-      if (rate >= 10 && t - lastMashEmit > 5000 && !senseRemarks()) { lastMashEmit = t; US.emit('mash', { rate: rate, from: 'director' }); }
+      if (rate > (mem.mashMax | 0)) mem.mashMax = rate;   // sense.js emits 'mash' at >= 10
     }
     US.emit('input', { kind: kind });
   };
-  function senseRemarks() { return !!(US.sense && US.sense.remarks); }
-  function toolsHere() { return !!(US.tools && typeof US.tools.resolve === 'function'); }
   US.limited = function () { return clock.P < (US._limitUntil || 0); };
 
+  var idleSaid = {};
   function idleStep() {
     if (!connected || clock.stopped) return;
     var idle = currentIdle();
@@ -940,10 +920,12 @@
     if (!Array.isArray(arr) || !arr.length) return;
     var idx = stage < 3 ? stage : (stage - 3) % arr.length;
     var txt = US.fmt(arr[idx % arr.length], { idle: Math.round(idle) });
-    if (txt) US.say(txt, { idle: true });
+    if (!txt || clock.P - (idleSaid[txt] || -1e9) < 120) return;   // don't repeat an idle line within two minutes
+    idleSaid[txt] = clock.P;
+    US.say(txt, { idle: true });
   }
 
-  /* --------------------------------------------- event-driven memory keeping */
+  /* ==== event-driven memory keeping */
   US.on('mash', function (d) {
     var rate = +d.rate || 10;
     mem.lastMash = rate;
@@ -952,8 +934,6 @@
     if (t - lastMashSay < 5000) return;
     lastMashSay = t;
     US._limitUntil = clock.P + 2;
-    if (senseRemarks()) return;            // sense.js counts and speaks the masher line itself
-    mem.mashCount = (mem.mashCount | 0) + 1;
     if (connected && (US.state === 'panel' || US.state === 'term')) US.say(US.line('mash'));
   });
   US.on('deleted', function (d) {
@@ -973,7 +953,7 @@
     if (s >= 6) notice('notice.hesitate', { hesNow: US.hes(s) });
   });
   function notice(path, extra) {
-    if (US.mask < 16 || !connected || clock.stopped || senseRemarks()) return;
+    if (US.mask < 16 || !connected || clock.stopped) return;
     if (!(US.state === 'panel' || US.state === 'term')) return;
     if (clock.P - lastNoticeP < 40) return;
     var t = US.line(path, extra);
@@ -981,36 +961,14 @@
     lastNoticeP = clock.P;
     US.say(t);
   }
-  US.on('lookup', function (d) {
-    if (!d || d.auto || d.q == null) return;
-    var q = String(d.q).trim(); if (!q) return;
-    if (d.bucket) mem.lastBucket = d.bucket;
-    if (toolsHere() || d.recorded) return;  // tools.js records lookups in memory itself
-    mem.lookups = mem.lookups || [];
-    mem.lookups.push(q);
-    mem.lastQuery = q;
-    if (d.bucket) mem.lastBucket = d.bucket;
-    if (!mem.firstLookup) mem.firstLookup = q;
-    mem.lookupCount = mem.lookups.length;
-  });
-  US.on('trace', function (d) {
-    if (!d || d.auto || d.target == null || d.recorded || toolsHere()) return;
-    mem.traces = mem.traces || [];
-    mem.traces.push(String(d.target));
-  });
-  US.on('device', function (d) {
-    if (!d || d.auto || toolsHere()) return;
-    var n = d.name || d.id; if (!n) return;
-    if (!mem.deviceTapped) mem.deviceTapped = n;
-    mem.devicesTapped = mem.devicesTapped || [];
-    if (mem.devicesTapped.indexOf(n) < 0) mem.devicesTapped.push(n);
-  });
+  // lookups, traces and device taps are recorded by tools.js; the director only notes the bucket
+  US.on('lookup', function (d) { if (d && !d.auto && d.bucket) mem.lastBucket = d.bucket; });
   US.on('lease', function (d) { if (d && typeof d.renewals === 'number' && d.renewals >= (mem.renewals | 0)) mem.renewals = d.renewals; });
   US.on('drop', function () {
     if (US.mask === 8 && !mem._droppedToast) { mem._droppedToast = true; US.toast(US.line('toast.dropped')); }
   });
 
-  /* ------------------------------------------------------------- visibility */
+  /* ==== visibility */
   var awayStartMs = 0;
   function isHidden() { return D.visibilityState === 'hidden'; }
   function onVisibility() {
@@ -1047,7 +1005,7 @@
     }
   }
 
-  /* ------------------------------------------------------------- disconnect */
+  /* ==== disconnect */
   US.disconnect = function () {
     if (US.state === 'disconnected') return;
     var from = US.state;
@@ -1065,7 +1023,7 @@
     US.setState('disconnected');
   };
 
-  /* ----------------------------------------------------------------- connect */
+  /* ==== connect */
   US.on('connect', function (d) {
     if (connected) return;
     d = d || {};
@@ -1104,7 +1062,7 @@
     return (s === s.toUpperCase() && /\p{L}/u.test(s) && s.length > 1) ? s : s.toLowerCase();
   };
 
-  /* ------------------------------------------------------------------- debug */
+  /* ==== debug */
   var dbgEl = null;
   function debugStep() {
     if (!DEBUG) return;
@@ -1119,7 +1077,7 @@
       'holds: ' + (Object.keys(holds).join(',') || '-') + (typingNow() ? ' typing' : '') + '  idle ' + Math.round(currentIdle()) + 's\n' + summary;
   }
 
-  /* -------------------------------------------------------------------- loop */
+  /* ==== loop */
   var lastTickMs = 0;
   function loop() {
     var now = nowMs();
@@ -1144,7 +1102,7 @@
     if (now - lastTickMs >= 250) { lastTickMs = now; US.emit('tick', { T: clock.T }); debugStep(); }
   }
 
-  /* -------------------------------------------------------------------- boot */
+  /* ==== boot */
   var booted = false;
   function registerCues() {
     BEATS.forEach(function (b) {
@@ -1160,13 +1118,6 @@
       if (isBeatStart) return;
       US.schedule(x[0], function (info) { if (!info.late && US.state === 'panel') US.tab(x[1], { auto: true }); });
     });
-  }
-  function installFallbackInput() {
-    var lastMove = 0;
-    D.addEventListener('keydown', function () { US.input('key'); }, { passive: true, capture: true });
-    D.addEventListener('pointerdown', function () { US.input('pointer'); }, { passive: true, capture: true });
-    D.addEventListener('wheel', function () { US.input('wheel'); }, { passive: true, capture: true });
-    D.addEventListener('pointermove', function () { var t = nowMs(); if (t - lastMove > 500) { lastMove = t; US.input('move'); } }, { passive: true, capture: true });
   }
   function boot() {
     if (booted) return;
@@ -1205,9 +1156,6 @@
     US.applyL();
     hudSet(0, 0, true);
     var sb = $('btn-sound'); if (sb) setText(sb, US.line('panel.soundOff'));
-
-    var senseHere = US.sense && Object.keys(US.sense).some(function (k) { return k !== 'orientation' || US.sense.orientation; });
-    if (!senseHere) { warn('sense', 'sense.js not present — director installs a minimal input feed'); installFallbackInput(); }
 
     D.addEventListener('input', function (e) {
       var t = e.target;
@@ -1248,8 +1196,11 @@
       if (T > 30) jumpTo(T);
     }
   }
-  if (D.readyState === 'loading') D.addEventListener('DOMContentLoaded', boot);
+  // Deferred scripts run while readyState is already 'interactive', so a setTimeout here could fire
+  // before the later scripts (tools, scenes) have registered for 'boot'. DOMContentLoaded waits for all of them.
+  if (D.readyState !== 'complete') D.addEventListener('DOMContentLoaded', boot);
   else setTimeout(boot, 0);
+  W.addEventListener('load', boot);
   US._boot = boot;
   US.param = function (k) { return (TESTING || DEBUG || k === 'via' || k === 'from' || k === 'speed') ? Q.get(k) : null; };
 })();

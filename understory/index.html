@@ -15,7 +15,7 @@
 </head>
 <body>
 
-<!-- ============ B01 / B14 · Captive portal (also the coda) ============ -->
+<!-- B01 / B14 · Captive portal (also the coda) -->
 <section class="screen" id="portal" aria-labelledby="portal-title">
   <div class="portal-top">
     <div class="net-chip">
@@ -93,7 +93,7 @@
   </dialog>
 </section>
 
-<!-- ============ B02 · Handshake ============ -->
+<!-- B02 · Handshake -->
 <section class="screen" id="handshake" hidden aria-label="Connecting">
   <div id="hs-card" data-focus tabindex="-1">
     <div class="hs-top">
@@ -106,7 +106,7 @@
   <button type="button" class="disconnect" data-l="panel.disconnect">Disconnect</button>
 </section>
 
-<!-- ============ B03–B08 · Router admin panel ============ -->
+<!-- B03–B08 · Router admin panel -->
 <section class="screen" id="panel" hidden aria-label="Router">
   <header id="panel-header">
     <div class="hdr-main">
@@ -296,7 +296,7 @@
   <footer id="panel-footer" data-l="panel.footer">© Understory Networks · ✓ Firmware up to date · Support</footer>
 </section>
 
-<!-- ============ B09 · Face down (overlay over the panel) ============ -->
+<!-- B09 · Face down (overlay over the panel) -->
 <section class="screen" id="face" hidden role="dialog" aria-modal="true" aria-labelledby="face-title">
   <div id="face-card">
     <h2 id="face-title" data-l="face.title" data-focus tabindex="-1">One small thing.</h2>
@@ -311,7 +311,7 @@
   <button type="button" class="disconnect" data-l="panel.disconnect">Disconnect</button>
 </section>
 
-<!-- ============ B10 · False ending ============ -->
+<!-- B10 · False ending -->
 <section class="screen" id="done" hidden aria-labelledby="done-title">
   <div id="done-card">
     <div id="done-check" aria-hidden="true">✓</div>
@@ -325,7 +325,7 @@
   <button type="button" class="disconnect" data-l="panel.disconnect">Disconnect</button>
 </section>
 
-<!-- ============ B11–B12 · Terminal ============ -->
+<!-- B11–B12 · Terminal -->
 <section class="screen" id="term" hidden aria-label="Terminal">
   <div id="term-head">
     <span id="term-ssid">UNDERSTORY-GUEST</span>
@@ -345,7 +345,7 @@
   </form>
 </section>
 
-<!-- ============ B13 · Last lookup ============ -->
+<!-- B13 · Last lookup -->
 <section class="screen" id="last" hidden aria-labelledby="last-ask">
   <div class="last-wrap">
     <p id="last-ask" data-l="last.ask" data-focus tabindex="-1">Ask me one last thing. Any name at all.</p>
@@ -358,7 +358,7 @@
   <button type="button" class="disconnect" data-l="term.disconnect">[disconnect]</button>
 </section>
 
-<!-- ============ B15 · Node manifest (sheet over the coda portal) ============ -->
+<!-- B15 · Node manifest (sheet over the coda portal) -->
 <section class="screen" id="manifest" hidden role="dialog" aria-labelledby="man-title">
   <div class="sheet">
     <span class="sheet-grip" aria-hidden="true"></span>
@@ -393,12 +393,13 @@
 
     <div class="sheet-foot">
       <button type="button" id="btn-reconnect" class="btn btn-ghost" data-l="man.reconnect">Reconnect</button>
-      <a id="btn-back" href="../index.html" data-l="man.back">Back to Heartwood</a>
+      <button type="button" id="man-disconnect" class="btn btn-ghost disconnect" data-l="panel.disconnect">Disconnect</button>
+      <a id="btn-back" href="../" data-l="man.back">Back to Heartwood</a>
     </div>
   </div>
 </section>
 
-<!-- ============ Disconnected ============ -->
+<!-- Disconnected -->
 <section class="screen" id="disconnected" hidden aria-labelledby="disc-title">
   <div class="disc-wrap">
     <h1 id="disc-title" data-l="disc.title" data-focus tabindex="-1">Disconnected.</h1>
@@ -409,12 +410,12 @@
       <button type="button" id="disc-forget" class="btn btn-danger btn-block" data-l="disc.forget">Forget me</button>
       <p id="disc-forget-msg" aria-live="polite"></p>
       <button type="button" id="disc-reconnect" class="btn btn-ghost btn-block" data-l="disc.reconnect">Reconnect</button>
-      <a id="disc-back" href="../index.html" data-l="disc.back">Back to Heartwood</a>
+      <a id="disc-back" href="../" data-l="disc.back">Back to Heartwood</a>
     </div>
   </div>
 </section>
 
-<!-- ============ Global layers ============ -->
+<!-- Global layers -->
 <div id="hud" title="Subnet mask 0.0.0.0. The smaller the network, the fewer hosts it holds.">
   <div class="hud-bar">
     <svg class="wifi wifi-mini" viewBox="0 0 64 64" aria-hidden="true" focusable="false"><circle class="ring-extra" cx="32" cy="42" r="31" pathLength="100"/><circle class="ring" cx="32" cy="42" r="24" pathLength="100"/><circle class="ring" cx="32" cy="42" r="16" pathLength="100"/><circle class="ring" cx="32" cy="42" r="8" pathLength="100"/><circle class="dot" cx="32" cy="42" r="3.6"/></svg>

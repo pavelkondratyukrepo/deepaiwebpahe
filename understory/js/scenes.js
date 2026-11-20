@@ -27,7 +27,7 @@
   var S = US.scenes = US.scenes || {};
   S.blanked = false;
 
-  /* ================================================================ portal */
+  /* ==== portal */
   var portal = { timers: [], connecting: false, noteBase: '', noteHint: '', tagIdx: 0, guests: 4294967294 };
   function portalNote() {
     var n = [portal.noteBase, portal.noteHint].filter(Boolean).join(' ');
@@ -126,7 +126,7 @@
   S.autoConnect = function () { portal.connecting = true; };
   function stopPortal() { portal.timers.forEach(function (id) { if (id) US.cancel(id); }); portal.timers = []; }
 
-  /* --------------------------------------------------------- terms dialog */
+  /* ==== terms dialog */
   function openTerms() {
     var dlg = D.getElementById('terms'); if (!dlg) return;
     var coda = html.hasAttribute('data-coda');
@@ -144,7 +144,7 @@
     try { if (dlg.close) dlg.close(); else dlg.removeAttribute('open'); } catch (e) { dlg.removeAttribute('open'); }
   }
 
-  /* ============================================================= handshake */
+  /* ==== handshake */
   function handshake() {
     var lines = arr('hs.lines').slice();
     if (US.isReturn()) {
@@ -165,7 +165,7 @@
     after(150 + lines.length * 700, function () { if (sp) { sp.classList.add('done'); sp.setAttribute('data-done', ''); } });
   }
 
-  /* ================================================================ status */
+  /* ==== status */
   var ST_KEYS = ['internet', 'quality', 'ip', 'subnet', 'hosts', 'gateway', 'dns', 'public', 'uptime', 'firmware'];
   function renderStatus() {
     ST_KEYS.forEach(function (k) {
@@ -223,7 +223,7 @@
     if (!late) after(lines.length * 1200, function () { US.toast(L('check.toast')); });
   }
 
-  /* =========================================================== face down */
+  /* ==== face down */
   var face = null;
   function faceBtns(yesKey, noKey) {
     var y = D.getElementById('face-yes'), n = D.getElementById('face-no');
@@ -231,6 +231,7 @@
     if (n) { hide(n, !noKey); if (noKey) txt(n, L(noKey)); n.disabled = false; }
   }
   function faceText(titleKey, bodyKey) {
+    if (titleKey === 'base') titleKey = face && face.path === 'desk' ? 'face.deskTitle' : 'face.title';
     if (titleKey) txt('face-title', L(titleKey));
     if (bodyKey !== undefined) txt('face-body', bodyKey ? L(bodyKey) : '');
   }
@@ -283,7 +284,7 @@
     faceClear();
     face.step = 'waiting';
     faceBtns(null, null);
-    faceText(null, 'face.waiting');
+    faceText('base', 'face.waiting');
     US.emit('face', { phase: 'waiting' });
     var flip = function () { return faceT(15000, function () { if (face.step === 'waiting') countPath('face.noFlip', 'eyes'); }); };
     face.flipTimer = flip();
@@ -330,7 +331,7 @@
     face.step = 'count';
     faceOutcome(outcome);
     faceBtns(null, null);
-    faceText(null, bodyKey);
+    faceText('base', bodyKey);
     faceDark(false);
     US.emit('face', { phase: outcome === 'refused' ? 'refused' : 'eyes' });
     faceT(3000, function () { faceDark(true); });
@@ -393,7 +394,7 @@
     faceDark(false);
   }
 
-  /* ========================================================= false ending */
+  /* ==== false ending */
   var done = { close: false, away: false, lineShown: false };
   function doneStart() {
     done = { close: false, away: false, lineShown: false };
@@ -420,7 +421,7 @@
     US.emit('blank', { on: false, line: true });
   }
 
-  /* ============================================================ terminal */
+  /* ==== terminal */
   var term = null;
   function termReset() {
     term = { q: [], src: [], cur: null, lastDone: now(), inputOn: false, pay: 0, payIdx: 0, nextPayT: 322, hold: null, flood: null, calm: null, said: 0 };
@@ -436,7 +437,7 @@
     if (!term) termReset();
     opt = opt || {};
     if (opt.idle && (term.cur || term.q.length || term.src.length)) return;   // idle lines only into silence
-    var item = { at: now(), text: String(text), m: !!opt.machine, whole: !!opt.whole, cls: opt.cls || null, pause: opt.pause != null ? opt.pause : (opt.machine ? 200 : 900) };
+    var item = { at: now(), text: String(text), m: !!opt.machine, whole: !!opt.whole, cls: opt.cls || null, front: !!opt.front, pause: opt.pause != null ? opt.pause : (opt.machine ? 200 : 900) };
     if (opt.front) term.q.unshift(item); else if (opt.src) term.src.push(item); else term.q.push(item);
   }
   S.termPrint = tprint;
@@ -452,15 +453,15 @@
     while (guard++ < 60) {
       var c = term.cur;
       if (c) {
-        if (!c.doneAt) {
+        if (c.doneAt == null) {
           var dur = (US.reduced || c.m || c.whole) ? 0 : c.text.length * 0.038;
           var n = dur ? Math.floor((t - c.start) / 0.038) : c.text.length;
           if (n >= c.text.length) { n = c.text.length; c.doneAt = c.start + dur; term.lastDone = c.doneAt; }
           var s = c.text.slice(0, Math.max(0, n));
           if (c.el.textContent !== s) { c.el.textContent = s; scrollTerm(); }
-          if (!c.doneAt) break;
+          if (c.doneAt == null) break;
         }
-        var end = c.doneAt + c.pause / 1000;
+        var end = c.doneAt + ((term.q[0] && term.q[0].front) ? Math.min(c.pause, 300) : c.pause) / 1000;   // a typed reply doesn't wait out the pause
         if (t < end) break;
         term.cur = null; prevEnd = term.prevEnd = end;
       }
@@ -469,7 +470,7 @@
       var out = D.getElementById('term-out');
       next.el = mk('div', 'tl ' + (next.m ? 'mach' : 'say') + (next.cls ? ' ' + next.cls : ''), '');
       if (out) out.appendChild(next.el);
-      next.start = Math.min(t, Math.max(prevEnd, next.at == null ? t : next.at)); next.doneAt = 0;
+      next.start = Math.min(t, Math.max(prevEnd, next.at == null ? t : next.at)); next.doneAt = null;
       term.cur = next;
       if (!next.m) US.a11y(next.text);
     }
@@ -487,11 +488,6 @@
     if (!p || !US.when(p.when)) return null;
     if (p.t == null) return p.key === 'mash' ? L('mash.payoff') : null;
     return R(p);
-  }
-  function payAvailable() {
-    var list = arr('pay'), n = 0;
-    for (var i = term.payIdx; i < list.length; i++) if (payText(list[i])) n++;
-    return n;
   }
   function nextPayoff() {
     var list = arr('pay');
@@ -557,7 +553,9 @@
   /* --- B12: the copy --- */
   function annotations() {
     var out = [];
-    arr('copy.annotations').forEach(function (a) { var s = F(a); if (s) out.push(s); });
+    // only annotate with things this visitor actually did (rule 3: specificity)
+    var gate = { 'looked away': 'away', 'came back': 'away', 'pressed too fast': 'mash', 'turned the phone face down': 'face:down', 'said no': 'face:refused' };
+    arr('copy.annotations').forEach(function (a) { var s = F(a); if (s && (!gate[a] || US.when(gate[a]))) out.push(s); });
     return out.length ? out : ['is reading this'];
   }
   function r255() { return Math.floor(Math.random() * 256); }
@@ -640,7 +638,7 @@
     if (s32[3]) tprint(F(s32[3]), { machine: true, src: true });
   }
 
-  /* ========================================================== last lookup */
+  /* ==== last lookup */
   var last = null;
   function lastStart() {
     last = { answered: false, pass: null };
@@ -691,7 +689,7 @@
     after(1000 + 9000, function () { if (US.beat === 'b13') { US.release('last'); US.goto('b14'); } });
   }
 
-  /* ================================================================= coda */
+  /* ==== coda */
   var coda = { tagTimer: null };
   function codaStart() {
     closeTerms();
@@ -723,7 +721,7 @@
     after(3000, function () { if (US.beat === 'b14') US.goto('b15'); });
   }
 
-  /* ============================================================= manifest */
+  /* ==== manifest */
   var MAN_ORDER = ['name', 'day', 'deleted', 'terms', 'device', 'lookups', 'traces', 'said', 'away', 'idle', 'mash', 'hes', 'face', 'env', 'sound', 'ip', 'visits', 'lastVisit'];
   function manItem(key) {
     var items = G('man.items') || {}, v = items[key];
@@ -790,7 +788,7 @@
     shareSetup();
   }
 
-  /* ---------------------------------------------------------------- share */
+  /* ==== share */
   function shareURL() {
     var base;
     try { base = new URL('./', location.href).href; } catch (e) { base = location.href.split('?')[0]; }
@@ -835,14 +833,14 @@
     copyLink();
   }
 
-  /* ========================================================= disconnected */
+  /* ==== disconnected */
   function discFill(from) {
     var line = (from === 'portal' || !US.connected()) ? (G('disc.line') && G('disc.line').portal) : null;
     txt('disc-line', line || L('disc.line'));
     var dl = D.getElementById('disc-line'); if (dl) dl.setAttribute('data-l-lock', '');
   }
 
-  /* ================================================================ wiring */
+  /* ==== wiring */
   function bind() {
     on('portal-form', 'submit', function (e) { e.preventDefault(); if (US.state === 'portal') tryConnect(false); });
     on('portal-terms-open', 'click', function (e) { e.preventDefault(); if (US.state === 'portal') US.remember('termsOpened', true); openTerms(); });
@@ -926,8 +924,8 @@
       case 'b03': renderStatus(); break;
       case 'b09': faceStart(); break;
       case 'b10': doneStart(); break;
-      case 'b11': termStart(jump); break;
-      case 'b12': if (!term || jump) termReset(); floodStart(); break;
+      case 'b11': termStart(jump); if (jump && US.T() >= 330) termReady(); break;
+      case 'b12': if (!term || jump) termReset(); floodStart(); if (jump) termReady(); break;
       case 'b13': lastStart(); break;
       case 'b14': codaStart(); break;
       case 'b15': buildManifest(); US.emit('finale', {}); break;

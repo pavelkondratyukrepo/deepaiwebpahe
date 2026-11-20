@@ -9,7 +9,7 @@
      html[data-reduced]   reduced motion (also honoured via media query)
    ===================================================================== */
 
-/* ---------- 1. Tokens ------------------------------------------------ */
+/* ==== 1. Tokens ==== */
 :root {
   --ui: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   --mono: ui-monospace, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
@@ -151,7 +151,7 @@ html[data-relief] {
   --console-fg: #22302a;
 }
 
-/* ---------- 2. Base -------------------------------------------------- */
+/* ==== 2. Base ==== */
 *, *::before, *::after { box-sizing: border-box; }
 [hidden] { display: none !important; }
 
@@ -211,7 +211,7 @@ a { color: var(--accent-ink); }
 /* Portal is visible without JS; once the director runs, it is shown only in its own states */
 html[data-state]:not([data-state="portal"]):not([data-state="coda"]):not([data-state="manifest"]) #portal { display: none; }
 
-/* ---------- 3. Controls --------------------------------------------- */
+/* ==== 3. Controls ==== */
 .btn {
   display: inline-flex; align-items: center; justify-content: center; gap: 8px;
   min-height: 44px;
@@ -331,7 +331,7 @@ input.switch:focus-visible { outline: 3px solid var(--focus); outline-offset: 2p
 }
 .screen > .disconnect:hover { background: var(--bg2); }
 
-/* ---------- 4. Wi-Fi glyph (arcs → rings) ---------------------------- */
+/* ==== 4. Wi-Fi glyph (arcs → rings) ==== */
 .wifi { display: block; overflow: visible; color: var(--accent); }
 .wifi .ring, .wifi .ring-extra {
   fill: none;
@@ -348,7 +348,7 @@ input.switch:focus-visible { outline: 3px solid var(--focus); outline-offset: 2p
 .wifi .dot { fill: currentColor; }
 html.ge32 .wifi .ring, html.ge32 .wifi .ring-extra { stroke-linecap: butt; stroke-width: 3; }
 
-/* ---------- 5. Portal (B01) and coda portal (B14) -------------------- */
+/* ==== 5. Portal (B01) and coda portal (B14) ==== */
 #portal {
   min-height: 100vh;
   min-height: 100svh;
@@ -396,8 +396,9 @@ html.ge32 .wifi .ring, html.ge32 .wifi .ring-extra { stroke-linecap: butt; strok
   margin-right: 5px;
   vertical-align: -1px;
   background: currentColor;
-  -webkit-mask: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 22'><path d='M4 9V6a6 6 0 0 1 12 0v3h1.5A1.5 1.5 0 0 1 19 10.5v10A1.5 1.5 0 0 1 17.5 22h-15A1.5 1.5 0 0 1 1 20.5v-10A1.5 1.5 0 0 1 2.5 9zm3 0h6V6a3 3 0 0 0-6 0z'/></svg>") center / contain no-repeat;
-  mask: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 22'><path d='M4 9V6a6 6 0 0 1 12 0v3h1.5A1.5 1.5 0 0 1 19 10.5v10A1.5 1.5 0 0 1 17.5 22h-15A1.5 1.5 0 0 1 1 20.5v-10A1.5 1.5 0 0 1 2.5 9zm3 0h6V6a3 3 0 0 0-6 0z'/></svg>") center / contain no-repeat;
+  --ico: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 22'><path d='M4 9V6a6 6 0 0 1 12 0v3h1.5A1.5 1.5 0 0 1 19 10.5v10A1.5 1.5 0 0 1 17.5 22h-15A1.5 1.5 0 0 1 1 20.5v-10A1.5 1.5 0 0 1 2.5 9zm3 0h6V6a3 3 0 0 0-6 0z'/></svg>");
+  -webkit-mask: var(--ico) center / contain no-repeat;
+  mask: var(--ico) center / contain no-repeat;
 }
 
 .portal-card {
@@ -557,7 +558,7 @@ dialog::backdrop { background: rgba(16, 24, 40, .42); }
   background: var(--card);
 }
 
-/* ----- coda: the portal, renamed (dusk palette, rings closed) ----- */
+/* ==== coda: the portal, renamed (dusk palette, rings closed) ==== */
 html[data-coda] #portal {
   --bg: #121712; --bg2: #171d17; --card: #161c16; --card-line: #2f3a2e;
   --fg: #d9e2d2; --muted: #a0ac9a; --line: #2a3429;
@@ -609,7 +610,7 @@ html.ge32 #last::before {
 html[data-state="manifest"] #portal { filter: saturate(.7) brightness(.8); pointer-events: none; }
 html[data-state="manifest"] #portal > .disconnect { display: none; }
 
-/* ---------- 6. Handshake (B02) -------------------------------------- */
+/* ==== 6. Handshake (B02) ==== */
 #handshake {
   min-height: 100vh; min-height: 100svh;
   display: grid; place-items: center;
@@ -639,8 +640,9 @@ html[data-state="manifest"] #portal > .disconnect { display: none; }
 #hs-spinner.done, #hs-spinner[data-done], #handshake[data-done] #hs-spinner {
   animation: none; border: 0;
   background: var(--ok);
-  -webkit-mask: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20'><path d='M10 0a10 10 0 1 1 0 20a10 10 0 0 1 0-20zm4.3 6.3L8.6 12 5.7 9.1 4.3 10.5l4.3 4.3 7.1-7.1z'/></svg>") center / contain no-repeat;
-  mask: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20'><path d='M10 0a10 10 0 1 1 0 20a10 10 0 0 1 0-20zm4.3 6.3L8.6 12 5.7 9.1 4.3 10.5l4.3 4.3 7.1-7.1z'/></svg>") center / contain no-repeat;
+  --ico: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20'><path d='M10 0a10 10 0 1 1 0 20a10 10 0 0 1 0-20zm4.3 6.3L8.6 12 5.7 9.1 4.3 10.5l4.3 4.3 7.1-7.1z'/></svg>");
+  -webkit-mask: var(--ico) center / contain no-repeat;
+  mask: var(--ico) center / contain no-repeat;
 }
 @keyframes spin { to { transform: rotate(360deg); } }
 #hs-lines { display: flex; flex-direction: column; gap: 8px; min-height: 9.5em; font-size: 15px; line-height: 1.45; }
@@ -653,7 +655,7 @@ html[data-state="manifest"] #portal > .disconnect { display: none; }
 #hs-lines li:last-child::before { background: var(--accent); }
 #handshake > .disconnect { background: #fff; border-color: #c5ceda; color: #1d2733; }
 
-/* ---------- 7. Router panel (B03–B08) -------------------------------- */
+/* ==== 7. Router panel (B03–B08) ==== */
 #panel {
   min-height: 100vh; min-height: 100svh;
   display: flex; flex-direction: column;
@@ -781,7 +783,6 @@ html.ge24 .hud-bar { background: var(--bg); }
 .hud-label { color: var(--muted); font-weight: 600; }
 .hud-value { font-family: var(--mono); font-variant-numeric: tabular-nums; font-size: 12.5px; white-space: nowrap; }
 #hud-cidr { color: var(--accent-ink); font-weight: 600; }
-html.ge32 .hud-unit { display: none; }
 #hud-line:empty { display: none; }
 #hud-line {
   width: max-content;
@@ -1169,8 +1170,9 @@ html.ge16 #lk-input, html.ge16 #lk-ghost, html.ge16 #dg-target, html.ge16 #wiz-i
 #lk-recent li:first-child { border-top: 0; }
 #lk-recent li::before {
   content: ""; flex: none; width: 14px; height: 14px; background: var(--muted);
-  -webkit-mask: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.4' stroke-linecap='round'><circle cx='12' cy='12' r='9'/><path d='M12 7v5l3 2'/></svg>") center / contain no-repeat;
-  mask: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.4' stroke-linecap='round'><circle cx='12' cy='12' r='9'/><path d='M12 7v5l3 2'/></svg>") center / contain no-repeat;
+  --ico: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.4' stroke-linecap='round'><circle cx='12' cy='12' r='9'/><path d='M12 7v5l3 2'/></svg>");
+  -webkit-mask: var(--ico) center / contain no-repeat;
+  mask: var(--ico) center / contain no-repeat;
 }
 html.ge16 #lk-recent li::before { display: none; }
 #lk-recent:has(ul:empty) { display: none; }
@@ -1255,7 +1257,7 @@ html.ge24 .hint { background: transparent; border: 1px dashed var(--line); color
 html.ge24 #wizard { border-color: var(--line); }
 html.ge24 #st-firmware { color: var(--accent-ink); }
 
-/* ---------- 8. Toasts ------------------------------------------------ */
+/* ==== 8. Toasts ==== */
 #toasts {
   position: fixed;
   z-index: 70;
@@ -1285,7 +1287,7 @@ html[data-state="face"]:has(#face-dark:not([hidden])) #toasts,
 html[data-state="done"]:has(#done-blank:not([hidden])) #toasts { display: none; }
 html[data-state="term"] #toasts, html[data-state="last"] #toasts { display: none; }
 
-/* ---------- 9. Face down (B09) -------------------------------------- */
+/* ==== 9. Face down (B09) ==== */
 #face {
   position: fixed; inset: 0;
   z-index: 50;
@@ -1329,7 +1331,7 @@ html[data-state="term"] #toasts, html[data-state="last"] #toasts { display: none
 #face:has(#face-dark:not([hidden])) > .disconnect { background: transparent; border-color: #2a3029; color: #8f9b8a; }
 @keyframes todark { from { opacity: 0; } to { opacity: 1; } }
 
-/* ---------- 10. False ending (B10) ---------------------------------- */
+/* ==== 10. False ending (B10) ==== */
 #done {
   position: fixed; inset: 0;
   z-index: 50;
@@ -1383,7 +1385,7 @@ html[data-state="term"] #toasts, html[data-state="last"] #toasts { display: none
 #done > .disconnect { z-index: 57; background: #fff; border-color: #c5ceda; color: #1d2733; }
 #done:has(#done-blank:not([hidden])) > .disconnect { background: transparent; border-color: #262c26; color: #7f8b7b; }
 
-/* ---------- 11. Terminal (B11–B12) ---------------------------------- */
+/* ==== 11. Terminal (B11–B12) ==== */
 #term {
   height: 100vh; height: 100svh;
   display: flex; flex-direction: column;
@@ -1424,7 +1426,7 @@ html.ge32 #term { background: #0c0e0c; color: #d9e2d2; --term-dim: #8a9886; }
   min-height: 0;
   overflow: hidden;
   display: flex; flex-direction: column;
-  padding: 34px calc(16px + var(--safe-r)) 8px calc(16px + var(--safe-l));
+  padding: 58px calc(16px + var(--safe-r)) 8px calc(16px + var(--safe-l));   /* room for the HUD and its one-line note */
 }
 #term-out, #term-flood, #term-calm, #term-form {
   width: 100%; max-width: 68ch; margin-left: auto; margin-right: auto;
@@ -1501,7 +1503,7 @@ html.ge32 #term-form { max-width: calc(56ch + 32px); border-top-color: #181d18; 
 #term-input:disabled { opacity: .35; }
 #term-form:has(#term-input:disabled) #term-prompt { opacity: .5; }
 
-/* ---------- 12. Last lookup (B13) ----------------------------------- */
+/* ==== 12. Last lookup (B13) ==== */
 #last {
   min-height: 100vh; min-height: 100svh;
   display: grid; place-items: center;
@@ -1545,7 +1547,7 @@ html.ge32 #term-form { max-width: calc(56ch + 32px); border-top-color: #181d18; 
 #last-out .mach, #last-out .rec { color: #8a9886; text-align: center; }
 #last-out .say { color: #d9e2d2; }
 
-/* ---------- 13. Manifest sheet (B15) -------------------------------- */
+/* ==== 13. Manifest sheet (B15) ==== */
 #manifest {
   position: fixed; inset: 0;
   z-index: 80;
@@ -1628,6 +1630,7 @@ html.ge32 #term-form { max-width: calc(56ch + 32px); border-top-color: #181d18; 
 #share-caption { font-size: 13px; color: var(--muted); }
 #share-privacy { font-size: 13px; color: var(--muted); }
 #share-msg { font-size: 14px; color: var(--ok); font-weight: 600; }
+html:not([data-coda]) #man-disconnect { display: none; }
 .sheet-foot { margin-top: 22px; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; }
 #btn-back, #disc-back {
   display: inline-flex; align-items: center; min-height: 44px;
@@ -1636,7 +1639,7 @@ html.ge32 #term-form { max-width: calc(56ch + 32px); border-top-color: #181d18; 
   text-underline-offset: 3px;
 }
 
-/* ---------- 14. Disconnected ---------------------------------------- */
+/* ==== 14. Disconnected ==== */
 #disconnected {
   min-height: 100vh; min-height: 100svh;
   display: grid; place-items: center;
@@ -1660,11 +1663,11 @@ html.ge32 #term-form { max-width: calc(56ch + 32px); border-top-color: #181d18; 
 .disc-actions { margin-top: 26px; display: flex; flex-direction: column; gap: 10px; }
 #disc-back { align-self: center; margin-top: 4px; }
 
-/* ---------- 15. Shared animation ------------------------------------ */
+/* ==== 15. Shared animation ==== */
 @keyframes fadein { from { opacity: 0; } to { opacity: 1; } }
 @keyframes toastin { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
 
-/* ---------- 16. Small phones ---------------------------------------- */
+/* ==== 16. Small phones ==== */
 @media (max-width: 419px) {
   #btn-disconnect::before { display: none; }
   html[data-state="coda"] .portal-top { justify-content: flex-start; padding-right: 128px; }
@@ -1707,7 +1710,7 @@ html.ge32 #term-form { max-width: calc(56ch + 32px); border-top-color: #181d18; 
   #dg-out { font-size: 11px; }
 }
 
-/* ---------- 17. Tablet / desktop ------------------------------------ */
+/* ==== 17. Tablet / desktop ==== */
 @media (min-width: 600px) {
   #panel-ssid { display: inline; }
   .st-grid { grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); }
@@ -1803,7 +1806,7 @@ html.ge32 #term-form { max-width: calc(56ch + 32px); border-top-color: #181d18; 
   .sheet { border-radius: 20px 20px 0 0; padding-top: 12px; }
 }
 
-/* ---------- 18. Reduced motion -------------------------------------- */
+/* ==== 18. Reduced motion ==== */
 html[data-reduced] *, html[data-reduced] *::before, html[data-reduced] *::after {
   transition-duration: 0s !important;
   transition-delay: 0s !important;

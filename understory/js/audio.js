@@ -176,31 +176,9 @@
     _ctx: function () { return ctx; }
   };
 
-  /* ---------- gestures that may start sound ---------- */
-  function soundTicked() { var b = document.getElementById("portal-sound"); return !!(b && b.checked); }
-  // Connect click / portal submit with the box ticked (capture: runs inside the gesture, before scenes)
-  document.addEventListener("click", function (e) {
-    var t = e.target;
-    if (t && t.closest && t.closest("#portal-connect") && soundTicked() && US.state !== "coda" && US.state !== "manifest") enable();
-  }, true);
-  document.addEventListener("submit", function (e) {
-    if (e.target && e.target.id === "portal-form" && soundTicked() && US.state !== "coda" && US.state !== "manifest") enable();
-  }, true);
-  // header button: the director flips the state and emits `sound`; we also catch the click itself
-  document.addEventListener("click", function (e) {
-    var t = e.target;
-    var b = t && t.closest && t.closest("#btn-sound");
-    if (!b) return;
-    // Decide after the director's handler has updated the attribute (same gesture, microtask later).
-    Promise.resolve().then(function () {
-      var s = document.documentElement.getAttribute("data-sound");
-      var pressed = b.getAttribute("aria-pressed");
-      var want = s ? s === "on" : (pressed ? pressed === "true" : !on);
-      if (want && !on) enable(); else if (!want && on) disable();
-    });
-  });
-
-  /* ---------- events ---------- */
+  /* ==== events ==== */
+  // Gestures: scenes.js calls US.setSound(true) inside the Connect submit (after validation),
+  // and the header button calls US.setSound() inside its click; both reach enable() directly.
   US.on("sound", function (d) {
     if (!d) return;
     if (d.on) { if (US.state !== "portal") enable(); else wanted = true; }
