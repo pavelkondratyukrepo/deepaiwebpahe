@@ -660,7 +660,7 @@
     var master, bus, wet, comp, lim, glass = null, noiseBuf = null, bed = null;
     var duck = 1, duckTarget = 1, clockOn = false, nextClock = 0, nextCreak = 0, lastStage = -1;
     var resolved = false, keyN = 0, clockN = 0, lastRing = 0, lastKey = 0;
-    var BED = 0.2;
+    var BED = 0.13;
     /* how wrong the product chime has gone, by stage */
     var SOUR = [0, 0.14, 0.32, 0.52, 0.76, 1];
 
@@ -830,7 +830,7 @@
     function keyClick(del) {
       var t = ac.currentTime + 0.01, s = ac.createBufferSource(), hp = filt('highpass', 3500, 0.7), g = gain(0);
       s.buffer = noiseBuf; s.connect(hp); hp.connect(g); g.connect(bus);
-      g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(0.035, t + 0.001); g.gain.setTargetAtTime(0, t + 0.001, 0.0012);
+      g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(0.028, t + 0.001); g.gain.setTargetAtTime(0, t + 0.001, 0.0012);
       s.start(t, rnd() * 0.8); s.stop(t + 0.03);
       var hi = del ? 1750 : 2300 + rnd() * 350, lo = del ? 185 : 235 + rnd() * 45;
       modal(hi, [[1, 1, 0.012], [1.7, 0.45, 0.008]], 0.05, 0, wetOf(0.1));
@@ -878,13 +878,13 @@
       var s = currentStage(), d = currentD(), r = rootHz(d), nowT = performance.now();
       switch (e.k) {
         case 'notify': chime(SOUR[s] || 0); break;
-        case 'reply': bowl(r * 4, 0.06, 2.4, s >= 4); break;
+        case 'reply': bowl(r * 4, 0.022, 2.4, s >= 4); break;
         case 'cut': scrape(e.i || 0, 0.22); break;
         case 'ring':
           /* a soft tick as each ring is laid down, a little lower each time */
           if (isReduced() || nowT - lastRing < 70) break;
           lastRing = nowT;
-          modal(2100 * semi(-(e.f || 0) * 7), [[1, 1, 0.014], [2.7, 0.3, 0.007]], 0.035, 0, wetOf(0.25));
+          modal(2100 * semi(-(e.f || 0) * 7), [[1, 1, 0.014], [2.7, 0.3, 0.007]], 0.045, 0, wetOf(0.25));
           break;
         case 'line': tock(360 + rnd() * 30, 0.1, wetOf(0.35)); break;
         case 'climax': swell([r * 2, r * 2 * 1.2, r * 2 * 1.40625, r * 4 * semi(1)], 0.07, 3, 4, 4, 0.9); break;
@@ -896,7 +896,7 @@
           lastKey = nowT; keyN++;
           keyClick(!!e.del);
           break;
-        case 'reveal': duckTarget = 0.04; bowl(196, 0.3, 9, false); break;
+        case 'reveal': duckTarget = 0.04; bowl(196, 0.075, 9, false); break;
         case 'send': chime(1, { peak: 0.06 }); break;
         case 'tookback': break;
         case 'resolve': resolved = true; duckTarget = 0.45; swell([r * 2, r * 3, r * 4, r * 6], 0.05, 4, 3, 7, 0.15); break;
@@ -950,7 +950,7 @@
       set(b.glassG.gain, 0.05 * smooth(0.22, 0.8, d), 1.5);
       set(b.hiG.gain, 0.03 * smooth(0.78, 1, d), 2);
       set(b.sub.frequency, r / 2, 1.5);
-      set(b.subG.gain, 0.035 * smooth(0.3, 0.9, d) * duck, 1);
+      set(b.subG.gain, 0.02 * smooth(0.3, 0.9, d) * duck, 1);
       set(b.g.gain, BED * (0.62 + 0.38 * smooth(0, 0.6, d)) * duck, 0.8);   /* quieter while it is still a product */
       set(master.gain, 0.9, 0.4);
       var st = currentStage();

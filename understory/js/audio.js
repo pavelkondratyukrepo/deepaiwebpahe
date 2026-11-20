@@ -354,7 +354,7 @@
       o.connect(og); og.connect(g); o.start(); return o;
     });
     s32 = { g: g, oscs: oscs };
-    ramp(g.gain, 0.085, 4);
+    ramp(g.gain, 0.065, 4);
   }
   function stopS32(secs) {
     if (!s32 || !ctx) return;
