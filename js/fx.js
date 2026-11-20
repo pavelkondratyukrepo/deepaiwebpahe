@@ -951,7 +951,7 @@
       set(b.hiG.gain, 0.03 * smooth(0.78, 1, d), 2);
       set(b.sub.frequency, r / 2, 1.5);
       set(b.subG.gain, 0.035 * smooth(0.3, 0.9, d) * duck, 1);
-      set(b.g.gain, BED * (0.75 + 0.25 * smooth(0, 0.4, d)) * duck, 0.8);
+      set(b.g.gain, BED * (0.62 + 0.38 * smooth(0, 0.6, d)) * duck, 0.8);   /* quieter while it is still a product */
       set(master.gain, 0.9, 0.4);
       var st = currentStage();
       if (st !== lastStage) {
